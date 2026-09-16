@@ -57,7 +57,7 @@ onMounted(async()=>{await loadHome();await loadAuth()})
     <template v-else-if="product">
       <button class="back" @click="product = null">← Kembali ke katalog</button>
       <p class="category">{{ product.category.name }}</p><h1>{{ product.name }}</h1>
-      <div class="image-placeholder">Preview produk</div><p class="price">{{ rupiah.format(product.price) }}</p><p class="description">{{ product.description }}</p>
+      <div class="image-placeholder"><img v-if="product.coverImage" :src="product.coverImage" :alt="product.name"><span v-else>Preview produk</span></div><p class="price">{{ rupiah.format(product.price) }}</p><p class="description">{{ product.description }}</p>
       <section v-for="group in product.options" :key="group.id" class="options"><strong>{{ group.name }}</strong><button v-for="value in group.values" :key="value.id" :class="{ selected: selectedOptions.includes(value.id) }" @click="chooseOption(group, value)">{{ value.name }} <small v-if="value.price_delta">+{{ rupiah.format(value.price_delta) }}</small></button></section>
       <button class="cta" @click="getQuote">Hitung harga</button><p v-if="quote" class="price">Total {{ rupiah.format(quote.totalPrice) }}</p>
       <section class="upload"><strong>Unggah desain atau foto</strong><input accept="image/jpeg,image/png,application/pdf,application/zip" type="file" @change="uploadDesign"><small>JPG, PNG, PDF, atau ZIP · maksimal 50 MB</small><span v-if="uploadedFile">{{ uploadedFile.name }} siap digunakan</span></section>
@@ -66,7 +66,7 @@ onMounted(async()=>{await loadHome();await loadAuth()})
     <template v-else>
       <section class="hero"><p class="category">Cetak momen terbaikmu</p><h1>Cerita yang bisa disentuh.</h1><p class="description">Produk personal untuk hadiah, kenangan, dan ruang favorit.</p><button class="cta">Mulai buat sekarang</button></section>
       <p v-if="loading">Memuat katalog…</p><p v-else-if="error" class="error">{{ error }}</p>
-      <template v-else><section class="chips"><button v-for="c in catalog.categories" :key="c.id">{{ c.name }}</button></section><section><div class="section-title"><h2>Pilihan populer</h2><button>Lihat semua</button></div><div class="products"><button v-for="item in catalog.featured" :key="item.id" class="product" @click="openProduct(item.slug)"><div class="image-placeholder">{{ item.category.name }}</div><span>{{ item.name }}</span><strong>{{ rupiah.format(item.price) }}</strong></button></div></section></template>
+      <template v-else><section class="chips"><button v-for="c in catalog.categories" :key="c.id">{{ c.name }}</button></section><section><div class="section-title"><h2>Pilihan populer</h2><button>Lihat semua</button></div><div class="products"><button v-for="item in catalog.featured" :key="item.id" class="product" @click="openProduct(item.slug)"><div class="image-placeholder"><img v-if="item.coverImage" :src="item.coverImage" :alt="item.name"><span v-else>{{ item.category.name }}</span></div><span>{{ item.name }}</span><strong>{{ rupiah.format(item.price) }}</strong></button></div></section></template>
     </template>
   </main>
 </template>
