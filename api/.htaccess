@@ -1,0 +1,10 @@
+Options -Indexes
+RewriteEngine On
+
+# Prevent direct HTTP access to implementation and runtime configuration files.
+RewriteRule ^app/ - [F,L]
+
+# Route /api/Store/Catalog/home to index.php?url=Store/Catalog/home.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
