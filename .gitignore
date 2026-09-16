@@ -1,0 +1,8 @@
+node_modules/
+frontend/*/node_modules/
+frontend/*/dist/
+public/store/
+public/admin/
+api/app/Config/Env.php
+.env
+*.sql

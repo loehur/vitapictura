@@ -1,0 +1,11 @@
+Apply against a fresh Vita Pictura database, in this exact order:
+
+001_customer_identity_and_addresses.sql
+002_catalog.sql
+003_product_configurations_and_uploads.sql
+004_cart.sql
+005_orders_and_shipping.sql
+006_payments.sql
+007_order_fulfillment.sql
+
+Run the demo seed files only in local development. Never run them in staging or production.
