@@ -705,6 +705,19 @@
     border-radius: var(--radius-card);
     background: var(--color-brand-50);
   }
+  .map-search {
+    display: block;
+  }
+  .map-search > * {
+    width: 100%;
+  }
+  .map-search input {
+    width: 100%;
+    padding: 0.85rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field);
+    font: inherit;
+  }
   .address__area {
     color: var(--color-muted);
     font-size: 0.82rem;

@@ -163,7 +163,7 @@ function loadGoogleMaps() {
     const callback = '__vpInitMaps'
     window[callback] = () => resolve(true)
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey.value)}&libraries=places&language=id&region=ID&callback=${callback}`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey.value)}&libraries=places&language=id&region=ID&loading=async&callback=${callback}`
     script.async = true
     script.onerror = () => resolve(false)
     document.head.appendChild(script)
@@ -197,16 +197,38 @@ async function startMap() {
     markerInstance = new google.maps.Marker({ map: mapInstance, position: hasPoint ? center : null, draggable: true })
     markerInstance.addListener('dragend', () => { const p = markerInstance.getPosition(); if (p) setMapPoint(p.lat(), p.lng()) })
     if (mapSearch.value) {
-      autocompleteInstance = new google.maps.places.Autocomplete(mapSearch.value, { componentRestrictions: { country: 'id' }, fields: ['geometry', 'formatted_address', 'address_components', 'name'] })
-      autocompleteInstance.addListener('place_changed', () => {
-        const place = autocompleteInstance.getPlace()
-        if (!place.geometry?.location) return
-        const location = place.geometry.location
-        mapInstance.setCenter(location); mapInstance.setZoom(16); markerInstance.setPosition(location)
-        setMapPoint(location.lat(), location.lng())
-        if (place.formatted_address) addressForm.value.address_line = place.formatted_address
-        applyAddressComponents(place.address_components)
-      })
+      if (google.maps.places.PlaceAutocompleteElement) {
+        const element = new google.maps.places.PlaceAutocompleteElement({ includedRegionCodes: ['id'] })
+        mapSearch.value.innerHTML = ''
+        mapSearch.value.appendChild(element)
+        element.addEventListener('gmp-select', async (event) => {
+          const place = event.placePrediction?.toPlace()
+          if (!place) return
+          await place.fetchFields({ fields: ['location', 'formattedAddress', 'addressComponents'] })
+          const location = place.location
+          if (!location) return
+          mapInstance.setCenter(location); mapInstance.setZoom(16); markerInstance.setPosition(location)
+          setMapPoint(location.lat(), location.lng())
+          if (place.formattedAddress) addressForm.value.address_line = place.formattedAddress
+          const components = (place.addressComponents || []).map((c) => ({ long_name: c.longText, short_name: c.shortText, types: c.types }))
+          applyAddressComponents(components)
+        })
+      } else if (google.maps.places.Autocomplete) {
+        const input = document.createElement('input')
+        input.type = 'text'; input.placeholder = 'Cari alamat / tempat'
+        mapSearch.value.innerHTML = ''
+        mapSearch.value.appendChild(input)
+        autocompleteInstance = new google.maps.places.Autocomplete(input, { componentRestrictions: { country: 'id' }, fields: ['geometry', 'formatted_address', 'address_components', 'name'] })
+        autocompleteInstance.addListener('place_changed', () => {
+          const place = autocompleteInstance.getPlace()
+          if (!place.geometry?.location) return
+          const location = place.geometry.location
+          mapInstance.setCenter(location); mapInstance.setZoom(16); markerInstance.setPosition(location)
+          setMapPoint(location.lat(), location.lng())
+          if (place.formatted_address) addressForm.value.address_line = place.formatted_address
+          applyAddressComponents(place.address_components)
+        })
+      }
     }
   } else {
     google.maps.event.trigger(mapInstance, 'resize')
@@ -463,7 +485,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
 
         <div class="field">
           <span>Titik lokasi (Google Maps)</span>
-          <input ref="mapSearch" type="text" placeholder="Cari alamat / tempat">
+          <div ref="mapSearch" class="map-search"></div>
           <div ref="mapEl" class="map-box"></div>
           <small v-if="!googleMapsKey" class="muted">Google Maps API key belum diatur.</small>
           <small v-else-if="addressForm.latitude" class="muted">Titik: {{ addressForm.latitude }}, {{ addressForm.longitude }}</small>
