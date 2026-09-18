@@ -219,7 +219,7 @@ async function startMap() {
     mapInstance = new google.maps.Map(mapEl.value, { center, zoom: hasPoint ? 16 : 5, mapId: 'DEMO_MAP_ID', mapTypeControl: false, streetViewControl: false, fullscreenControl: false })
     markerInstance = google.maps.marker?.AdvancedMarkerElement ? new google.maps.marker.AdvancedMarkerElement({ map: mapInstance, position: hasPoint ? center : null, gmpDraggable: true }) : new google.maps.Marker({ map: mapInstance, position: hasPoint ? center : null, draggable: true })
     const onMarkerDragEnd = () => { const p = getMarkerPosition(); if (p) setMapPoint(typeof p.lat === 'function' ? p.lat() : p.lat, typeof p.lng === 'function' ? p.lng() : p.lng) }
-    if (typeof markerInstance.addEventListener === 'function') markerInstance.addEventListener('dragend', onMarkerDragEnd); else markerInstance.addListener('dragend', onMarkerDragEnd)
+    if (typeof markerInstance.addEventListener === 'function') markerInstance.addEventListener('gmp-dragend', onMarkerDragEnd); else markerInstance.addListener('dragend', onMarkerDragEnd)
     mapInstance.addListener('click', (event) => { if (event.latLng) { setMarkerPosition(event.latLng); setMapPoint(event.latLng.lat(), event.latLng.lng()) } })
     if (!hasPoint) {
       getBrowserLocation().then((location) => {
