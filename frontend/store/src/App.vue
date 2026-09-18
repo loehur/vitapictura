@@ -470,14 +470,18 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
               <a v-for="file in item.uploads" :key="file.id" :href="file.url" target="_blank" rel="noopener">{{ file.name }}</a>
             </div>
             <div class="cart-item__row">
-              <div class="qty">
-                <button type="button" aria-label="Kurangi jumlah" @click="updateCartQty(item, Math.max(1, item.quantity - 1))">−</button>
-                <span>{{ item.quantity }}</span>
-                <button type="button" aria-label="Tambah jumlah" @click="updateCartQty(item, item.quantity + 1)">+</button>
+              <div class="cart-item__controls">
+                <div class="qty">
+                  <button type="button" aria-label="Kurangi jumlah" @click="updateCartQty(item, Math.max(1, item.quantity - 1))">−</button>
+                  <span>{{ item.quantity }}</span>
+                  <button type="button" aria-label="Tambah jumlah" @click="updateCartQty(item, item.quantity + 1)">+</button>
+                </div>
+                <button class="icon-danger" type="button" aria-label="Hapus item" title="Hapus" @click="removeCartItem(item)">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                </button>
               </div>
               <strong>{{ rupiah.format(item.totalPrice) }}</strong>
             </div>
-            <button class="link-danger" type="button" @click="removeCartItem(item)">Hapus</button>
           </div>
         </article>
 
