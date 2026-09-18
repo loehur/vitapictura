@@ -165,7 +165,7 @@ function loadGoogleMaps() {
     const callback = '__vpInitMaps'
     window[callback] = () => resolve(true)
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey.value)}&libraries=places&language=id&region=ID&loading=async&callback=${callback}`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey.value)}&libraries=places,marker&language=id&region=ID&loading=async&callback=${callback}`
     script.async = true
     script.onerror = () => resolve(false)
     document.head.appendChild(script)
@@ -199,13 +199,15 @@ function getBrowserLocation() {
     )
   })
 }
+function setMarkerPosition(pos) { if (!markerInstance) return; if (typeof markerInstance.setPosition === 'function') markerInstance.setPosition(pos); else markerInstance.position = pos }
+function getMarkerPosition() { if (!markerInstance) return null; return typeof markerInstance.getPosition === 'function' ? markerInstance.getPosition() : markerInstance.position }
 async function goToMyLocation() {
   if (!mapInstance) return
   const location = await getBrowserLocation()
   if (!location) { areaStatus.value = 'Lokasi tidak tersedia. Izinkan akses lokasi di browser.'; return }
   const position = { lat: location.lat, lng: location.lng }
   mapInstance.setCenter(position); mapInstance.setZoom(16)
-  if (markerInstance) markerInstance.setPosition(position)
+  if (markerInstance) setMarkerPosition(position)
   setMapPoint(location.lat, location.lng)
 }
 async function startMap() {
@@ -214,16 +216,16 @@ async function startMap() {
   const hasPoint = addressForm.value.latitude !== null && addressForm.value.longitude !== null
   const center = hasPoint ? { lat: Number(addressForm.value.latitude), lng: Number(addressForm.value.longitude) } : { lat: -0.789275, lng: 113.921327 }
   if (!mapInstance) {
-    mapInstance = new google.maps.Map(mapEl.value, { center, zoom: hasPoint ? 16 : 5, mapTypeControl: false, streetViewControl: false, fullscreenControl: false })
-    markerInstance = new google.maps.Marker({ map: mapInstance, position: hasPoint ? center : null, draggable: true })
-    markerInstance.addListener('dragend', () => { const p = markerInstance.getPosition(); if (p) setMapPoint(p.lat(), p.lng()) })
-    mapInstance.addListener('click', (event) => { if (event.latLng) { markerInstance.setPosition(event.latLng); setMapPoint(event.latLng.lat(), event.latLng.lng()) } })
+    mapInstance = new google.maps.Map(mapEl.value, { center, zoom: hasPoint ? 16 : 5, mapId: 'DEMO_MAP_ID', mapTypeControl: false, streetViewControl: false, fullscreenControl: false })
+    markerInstance = google.maps.marker?.AdvancedMarkerElement ? new google.maps.marker.AdvancedMarkerElement({ map: mapInstance, position: hasPoint ? center : null, gmpDraggable: true }) : new google.maps.Marker({ map: mapInstance, position: hasPoint ? center : null, draggable: true })
+    markerInstance.addListener('dragend', () => { const p = getMarkerPosition(); if (p) setMapPoint(typeof p.lat === 'function' ? p.lat() : p.lat, typeof p.lng === 'function' ? p.lng() : p.lng) })
+    mapInstance.addListener('click', (event) => { if (event.latLng) { setMarkerPosition(event.latLng); setMapPoint(event.latLng.lat(), event.latLng.lng()) } })
     if (!hasPoint) {
       getBrowserLocation().then((location) => {
         if (location && addressForm.value.latitude === null && markerInstance) {
           const position = { lat: location.lat, lng: location.lng }
           mapInstance.setCenter(position); mapInstance.setZoom(15)
-          markerInstance.setPosition(position)
+          setMarkerPosition(position)
           setMapPoint(location.lat, location.lng)
         }
       })
@@ -239,7 +241,7 @@ async function startMap() {
           await place.fetchFields({ fields: ['location', 'formattedAddress', 'addressComponents'] })
           const location = place.location
           if (!location) return
-          mapInstance.setCenter(location); mapInstance.setZoom(16); markerInstance.setPosition(location)
+          mapInstance.setCenter(location); mapInstance.setZoom(16);         setMarkerPosition(location)
           setMapPoint(location.lat(), location.lng())
           if (place.formattedAddress) addressForm.value.address_line = place.formattedAddress
           const components = (place.addressComponents || []).map((c) => ({ long_name: c.longText, short_name: c.shortText, types: c.types }))
@@ -255,7 +257,7 @@ async function startMap() {
           const place = autocompleteInstance.getPlace()
           if (!place.geometry?.location) return
           const location = place.geometry.location
-          mapInstance.setCenter(location); mapInstance.setZoom(16); markerInstance.setPosition(location)
+          mapInstance.setCenter(location); mapInstance.setZoom(16);         setMarkerPosition(location)
           setMapPoint(location.lat(), location.lng())
           if (place.formatted_address) addressForm.value.address_line = place.formatted_address
           applyAddressComponents(place.address_components)
@@ -264,7 +266,7 @@ async function startMap() {
     }
   } else {
     google.maps.event.trigger(mapInstance, 'resize')
-    if (hasPoint) { mapInstance.setCenter(center); if (markerInstance) markerInstance.setPosition(center) }
+    if (hasPoint) { mapInstance.setCenter(center); if (markerInstance) setMarkerPosition(center) }
   }
 }
 async function resolveArea() {
@@ -282,7 +284,7 @@ function addressHierarchy(item) { return [item.villageName, item.districtName, i
 async function openAddresses() { return navigate('account') }
 function openAddressModal() { addressModalOpen.value = true; nextTick(() => startMap()) }
 function closeAddressModal() { addressModalOpen.value = false }
-async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) markerInstance.setPosition(null); closeAddressModal(); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
+async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) setMarkerPosition(null); closeAddressModal(); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }
