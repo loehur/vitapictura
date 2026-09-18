@@ -459,9 +459,8 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
 
       <div v-else class="cart">
         <article v-for="item in cart.items" :key="item.id" class="cart-item">
-          <div class="cart-item__media">
-            <img v-if="item.image" :src="item.image" :alt="item.name">
-            <span v-else>{{ item.name.charAt(0) }}</span>
+          <div v-if="item.image" class="cart-item__media">
+            <img :src="item.image" :alt="item.name">
           </div>
           <div class="cart-item__body">
             <strong>{{ item.name }}</strong>
