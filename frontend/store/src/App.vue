@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 const catalog = ref({ categories: [], featured: [] })
 const product = ref(null)
@@ -18,6 +18,7 @@ const cartOpen = ref(false)
 const ordersOpen = ref(false)
 const orders = ref([])
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
+const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
 
 async function request(path) {
   const url = path.startsWith('/') ? `/api${path}` : `/api/Store/Catalog/${path}`
@@ -28,7 +29,7 @@ async function request(path) {
 }
 async function loadHome() { try { loading.value = true; catalog.value = await request('home') } catch (e) { error.value = e.message } finally { loading.value = false } }
 async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId } catch {} }
-async function googleLogin(response) { try { const r=await fetch('/api/Customer/Auth/google',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({credential:response.credential})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);customer.value=p.data } catch(e){error.value=e.message} }
+async function googleLogin(response) { try { const r=await fetch('/api/Customer/Auth/google',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({credential:response.credential})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);customer.value=p.data;await refreshCart() } catch(e){error.value=e.message} }
 function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} window.google?.accounts.id.initialize({client_id:googleClientId.value,callback:googleLogin});window.google?.accounts.id.prompt() }
 async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;addressBook.value=true } catch(e){error.value=e.message} }
 async function saveAddress() { try { const r=await fetch('/api/Customer/Addresses/save',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(addressForm.value)});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false};await openAddresses() } catch(e){error.value=e.message} }
@@ -39,12 +40,34 @@ async function openCart() { if(!customer.value){startGoogleLogin();return}try{ca
 async function addCart() { if(!customer.value){startGoogleLogin();return}try{const r=await fetch('/api/Customer/Cart/add',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1,upload_ids:uploadedFile.value?[uploadedFile.value.id]:[]})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);await openCart()}catch(e){error.value=e.message} }
 async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;ordersOpen.value=true}catch(e){error.value=e.message} }
 async function openProduct(slug) { try { product.value = await request(`show/${slug}`); selectedOptions.value=[];quote.value=null;uploadedFile.value=null; window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { error.value = e.message } }
-onMounted(async()=>{await loadHome();await loadAuth()})
+function goHome() { product.value = null; cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; window.scrollTo({ top: 0, behavior: 'smooth' }) }
+async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
+async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
+onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart()})
 </script>
 
 <template>
   <main class="app-shell">
-    <header><p class="eyebrow">VITA PICTURA</p><span><button class="bag" @click="openCart">Keranjang</button><button class="bag" @click="openOrders">Pesanan</button><button class="bag" @click="customer ? openAddresses() : startGoogleLogin">{{ customer ? customer.name : 'Masuk Google' }}</button></span></header>
+    <header class="site-header">
+      <button class="brand" type="button" @click="goHome">
+        <span class="brand-mark" aria-hidden="true">VP</span>
+        <span class="brand-name">Vita Pictura</span>
+      </button>
+      <nav class="site-nav" aria-label="Navigasi utama">
+        <button class="nav-link" type="button" @click="goHome">Katalog</button>
+        <button class="nav-link" type="button" @click="openOrders">Pesanan</button>
+        <button class="nav-link" type="button" @click="openCart">Keranjang<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
+        <button class="nav-link account" type="button" @click="customer ? openAddresses() : startGoogleLogin">
+          <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
+          <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
+          <span class="account-name">{{ customer ? customer.name : 'Masuk' }}</span>
+        </button>
+      </nav>
+      <button class="mobile-cart" type="button" aria-label="Keranjang" @click="openCart">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
+        <span v-if="cartCount" class="badge">{{ cartCount }}</span>
+      </button>
+    </header>
     <template v-if="ordersOpen"><button class="back" @click="ordersOpen=false">← Kembali</button><p class="category">Akun</p><h1>Pesananmu</h1><p v-if="!orders.length" class="description">Belum ada pesanan.</p><article v-for="order in orders" :key="order.id" class="address"><strong>{{ order.order_number }}</strong><span>{{ order.status }} · {{ order.payment_status || 'belum dibayar' }}</span><strong>{{ rupiah.format(order.total) }}</strong><span v-if="order.tracking_number">Resi: {{ order.tracking_number }}</span></article></template>
     <template v-else-if="cartOpen">
       <button class="back" @click="cartOpen=false">← Kembali</button><p class="category">Keranjang</p><h1>Siap dicetak</h1><p v-if="!cart.items.length" class="description">Keranjangmu masih kosong.</p><article v-for="item in cart.items" :key="item.id" class="address"><strong>{{ item.name }}</strong><span v-for="choice in item.selections" :key="choice.valueId">{{ choice.group }}: {{ choice.value }}</span><strong>{{ rupiah.format(item.totalPrice) }}</strong></article><p v-if="cart.items.length" class="price">Total {{ rupiah.format(cart.total) }}</p>
@@ -68,5 +91,26 @@ onMounted(async()=>{await loadHome();await loadAuth()})
       <p v-if="loading">Memuat katalog…</p><p v-else-if="error" class="error">{{ error }}</p>
       <template v-else><section class="chips"><button v-for="c in catalog.categories" :key="c.id">{{ c.name }}</button></section><section><div class="section-title"><h2>Pilihan populer</h2><button>Lihat semua</button></div><div class="products"><button v-for="item in catalog.featured" :key="item.id" class="product" @click="openProduct(item.slug)"><div class="image-placeholder"><img v-if="item.coverImage" :src="item.coverImage" :alt="item.name"><span v-else>{{ item.category.name }}</span></div><span>{{ item.name }}</span><strong>Mulai {{ rupiah.format(item.price) }}</strong></button></div></section></template>
     </template>
+    <nav class="bottom-nav" aria-label="Navigasi bawah">
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" @click="goHome">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg>
+        <span>Beranda</span>
+      </button>
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': cartOpen }" @click="openCart">
+        <span class="nav-icon-wrap">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
+          <span v-if="cartCount" class="badge">{{ cartCount }}</span>
+        </span>
+        <span>Keranjang</span>
+      </button>
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': ordersOpen }" @click="openOrders">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+        <span>Pesanan</span>
+      </button>
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': addressBook }" @click="customer ? openAddresses() : startGoogleLogin">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+        <span>Akun</span>
+      </button>
+    </nav>
   </main>
 </template>

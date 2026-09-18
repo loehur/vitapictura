@@ -67,7 +67,7 @@
     width: 100%;
     max-width: 80rem;
     margin-inline: auto;
-    padding: 1.25rem;
+    padding: 1.25rem 1.25rem 6.5rem;
     background: radial-gradient(circle at top right, var(--color-brand-200), transparent 42%), var(--color-canvas);
   }
   @media (min-width: 48rem) {
@@ -76,7 +76,191 @@
     }
   }
 
-  .app-shell > header,
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: -1.25rem -1.25rem 1.5rem;
+    padding: 0.85rem 1.25rem;
+    background: rgba(251, 249, 255, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-line);
+  }
+  @media (min-width: 48rem) {
+    .site-header {
+      margin: -2rem -2.5rem 2rem;
+      padding: 1rem 2.5rem;
+    }
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-brand-800);
+  }
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.7rem;
+    background: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-800));
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 800;
+  }
+  .brand-name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  .site-nav {
+    display: none;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  @media (min-width: 48rem) {
+    .site-nav {
+      display: flex;
+    }
+  }
+
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.85rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-brand-700);
+    font-weight: 700;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .nav-link:hover {
+    background: var(--color-brand-100);
+  }
+
+  .badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: var(--color-brand-600);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .avatar {
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 999px;
+    object-fit: cover;
+  }
+  .avatar--fallback {
+    display: grid;
+    place-items: center;
+    background: var(--color-brand-200);
+    color: var(--color-brand-800);
+    font-size: 0.8rem;
+    font-weight: 800;
+  }
+  .account-name {
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-cart {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--color-brand-100);
+    color: var(--color-brand-800);
+  }
+  .mobile-cart .badge {
+    position: absolute;
+    top: -0.2rem;
+    right: -0.2rem;
+  }
+  @media (min-width: 48rem) {
+    .mobile-cart {
+      display: none;
+    }
+  }
+
+  .bottom-nav {
+    position: fixed;
+    left: 50%;
+    bottom: 0.75rem;
+    transform: translateX(-50%);
+    z-index: 50;
+    display: grid;
+    grid-auto-flow: column;
+    gap: 0.15rem;
+    width: calc(100% - 1.5rem);
+    max-width: 26rem;
+    padding: 0.35rem;
+    border: 1px solid var(--color-line);
+    border-radius: 1.1rem;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-pop);
+  }
+  @media (min-width: 48rem) {
+    .bottom-nav {
+      display: none;
+    }
+  }
+  .bottom-nav__item {
+    display: grid;
+    justify-items: center;
+    gap: 0.15rem;
+    padding: 0.45rem 0.25rem;
+    border: 0;
+    border-radius: 0.85rem;
+    background: transparent;
+    color: var(--color-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  .bottom-nav__item.is-active {
+    background: var(--color-brand-100);
+    color: var(--color-brand-700);
+  }
+  .nav-icon {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+  .nav-icon-wrap {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+  }
+  .nav-icon-wrap .badge {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.5rem;
+  }
+
   .section-title {
     display: flex;
     align-items: center;
