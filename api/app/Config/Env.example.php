@@ -63,6 +63,9 @@ class Env
         'http://127.0.0.1',
         'http://localhost:5173',
         'http://localhost:5174',
+        'https://vpictura.com',
+        'https://www.vpictura.com',
+        'https://api.vpictura.com',
     ];
 
     public static function isDev(): bool
