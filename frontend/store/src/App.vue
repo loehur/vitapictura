@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 const catalog = ref({ categories: [], featured: [] })
+const allProducts = ref([])
+const activeCategory = ref(null)
 const product = ref(null)
 const loading = ref(true)
 const error = ref('')
@@ -19,6 +21,8 @@ const ordersOpen = ref(false)
 const orders = ref([])
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
+const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan populer')
+const displayProducts = computed(() => activeCategory.value ? allProducts.value.filter((p) => p.category?.slug === activeCategory.value) : catalog.value.featured)
 
 async function request(path) {
   const url = path.startsWith('/') ? `/api${path}` : `/api/Store/Catalog/${path}`
@@ -27,7 +31,7 @@ async function request(path) {
   if (!response.ok || !payload.status) throw new Error(payload.message || 'Tidak dapat memuat katalog.')
   return payload.data
 }
-async function loadHome() { try { loading.value = true; catalog.value = await request('home') } catch (e) { error.value = e.message } finally { loading.value = false } }
+async function loadHome() { try { loading.value = true; catalog.value = await request('home'); allProducts.value = (await request('products?limit=48')).items } catch (e) { error.value = e.message } finally { loading.value = false } }
 async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId } catch {} }
 async function googleLogin(response) { try { const r=await fetch('/api/Customer/Auth/google',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({credential:response.credential})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);customer.value=p.data;await refreshCart() } catch(e){error.value=e.message} }
 function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} window.google?.accounts.id.initialize({client_id:googleClientId.value,callback:googleLogin});window.google?.accounts.id.prompt() }
@@ -41,6 +45,7 @@ async function addCart() { if(!customer.value){startGoogleLogin();return}try{con
 async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;ordersOpen.value=true}catch(e){error.value=e.message} }
 async function openProduct(slug) { try { product.value = await request(`show/${slug}`); selectedOptions.value=[];quote.value=null;uploadedFile.value=null; window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { error.value = e.message } }
 function goHome() { product.value = null; cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; window.scrollTo({ top: 0, behavior: 'smooth' }) }
+function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
 onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart()})
@@ -87,9 +92,60 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       <button class="cta" @click="addCart">Tambah ke keranjang</button>
     </template>
     <template v-else>
-      <section class="hero"><p class="category">Cetak momen terbaikmu</p><h1>Cerita yang bisa disentuh.</h1><p class="description">Produk personal untuk hadiah, kenangan, dan ruang favorit.</p><button class="cta">Mulai buat sekarang</button></section>
-      <p v-if="loading">Memuat katalog…</p><p v-else-if="error" class="error">{{ error }}</p>
-      <template v-else><section class="chips"><button v-for="c in catalog.categories" :key="c.id">{{ c.name }}</button></section><section><div class="section-title"><h2>Pilihan populer</h2><button>Lihat semua</button></div><div class="products"><button v-for="item in catalog.featured" :key="item.id" class="product" @click="openProduct(item.slug)"><div class="image-placeholder"><img v-if="item.coverImage" :src="item.coverImage" :alt="item.name"><span v-else>{{ item.category.name }}</span></div><span>{{ item.name }}</span><strong>Mulai {{ rupiah.format(item.price) }}</strong></button></div></section></template>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Cetak momen terbaikmu</p>
+          <h1>Cerita yang bisa disentuh.</h1>
+          <p class="description">Produk personal untuk hadiah, kenangan, dan ruang favorit. Pilih produk, atur desain, kami cetak dan kirim.</p>
+          <div class="hero-actions">
+            <button class="cta" type="button" @click="scrollToCatalog">Mulai buat sekarang</button>
+            <button class="ghost" type="button" @click="scrollToCatalog">Lihat katalog</button>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <span class="hero-card hero-card--a"></span>
+          <span class="hero-card hero-card--b"></span>
+          <span class="hero-card hero-card--c"></span>
+        </div>
+      </section>
+
+      <section id="katalog" class="catalog">
+        <div class="chips" role="tablist" aria-label="Filter kategori">
+          <button class="chip" type="button" :class="{ 'is-active': !activeCategory }" @click="activeCategory = null">Semua</button>
+          <button v-for="c in catalog.categories" :key="c.id" class="chip" type="button" :class="{ 'is-active': activeCategory === c.slug }" @click="activeCategory = c.slug">{{ c.name }}</button>
+        </div>
+
+        <div class="section-title catalog-title">
+          <div>
+            <h2>{{ activeCategoryName }}</h2>
+            <p class="section-sub">Menampilkan {{ displayProducts.length }} produk</p>
+          </div>
+          <button v-if="activeCategory" class="ghost ghost--sm" type="button" @click="activeCategory = null">Reset filter</button>
+        </div>
+
+        <p v-if="error" class="error">{{ error }}</p>
+        <div v-else-if="loading" class="products">
+          <div v-for="n in 4" :key="n" class="product-card product-card--skeleton" aria-hidden="true">
+            <span class="skeleton skeleton--media"></span>
+            <span class="skeleton skeleton--line"></span>
+            <span class="skeleton skeleton--line skeleton--short"></span>
+          </div>
+        </div>
+        <p v-else-if="!displayProducts.length" class="empty">Belum ada produk di kategori ini.</p>
+        <div v-else class="products">
+          <button v-for="item in displayProducts" :key="item.id" class="product-card" type="button" @click="openProduct(item.slug)">
+            <span class="product-card__media">
+              <img v-if="item.coverImage" :src="item.coverImage" :alt="item.name" loading="lazy">
+              <span v-else class="product-card__fallback">{{ item.category.name }}</span>
+            </span>
+            <span class="product-card__body">
+              <span class="product-card__cat">{{ item.category.name }}</span>
+              <span class="product-card__name">{{ item.name }}</span>
+              <span class="product-card__price">Mulai {{ rupiah.format(item.price) }}</span>
+            </span>
+          </button>
+        </div>
+      </section>
     </template>
     <nav class="bottom-nav" aria-label="Navigasi bawah">
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" @click="goHome">
