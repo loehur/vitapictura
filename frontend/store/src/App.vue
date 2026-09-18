@@ -32,6 +32,8 @@ const linkDrive = ref('')
 const uploadFiles = ref([])
 const uploading = ref(false)
 const uploadPercent = ref(0)
+const uploadIndex = ref(0)
+const uploadTotal = ref(0)
 const activeTab = ref(0)
 const zoomUrl = ref(null)
 const cart = ref({ items: [], total: 0 })
@@ -306,23 +308,46 @@ function selectOption(group, rawValue) {
 }
 function changeQty(delta) { qty.value = Math.max(1, (Number(qty.value) || 1) + delta) }
 function onFilesChange(event) { uploadFiles.value = Array.from(event.target.files || []) }
+function lockScroll(on) { if (typeof document !== 'undefined') document.body.style.overflow = on ? 'hidden' : '' }
+function uploadFile(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('product_id', product.value.id)
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', apiUrl('/Customer/Configurator/upload'))
+    xhr.withCredentials = true
+    xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(event.loaded / event.total) }
+    xhr.onload = () => {
+      let payload = {}
+      try { payload = JSON.parse(xhr.responseText) } catch (e) {}
+      if (xhr.status >= 200 && xhr.status < 300 && payload.status) resolve(payload.data)
+      else reject(new Error(payload.message || 'Gagal mengunggah berkas.'))
+    }
+    xhr.onerror = () => reject(new Error('Gagal mengunggah berkas.'))
+    xhr.send(form)
+  })
+}
 async function uploadSelection() {
   const ids = []
   if (fileMethod.value !== '1' || !uploadFiles.value.length) return ids
   uploading.value = true; uploadPercent.value = 0
+  uploadTotal.value = uploadFiles.value.length; uploadIndex.value = 0
+  lockScroll(true)
   try {
     for (let index = 0; index < uploadFiles.value.length; index++) {
-      const form = new FormData()
-      form.append('file', uploadFiles.value[index])
-      form.append('product_id', product.value.id)
-      const response = await fetch(apiUrl('/Customer/Configurator/upload'), { method: 'POST', credentials: 'include', body: form })
-      const payload = await response.json()
-      if (!response.ok || !payload.status) throw new Error(payload.message || 'Gagal mengunggah file.')
-      ids.push(payload.data.id)
+      uploadIndex.value = index + 1
+      const data = await uploadFile(uploadFiles.value[index], (ratio) => {
+        uploadPercent.value = Math.round(((index + ratio) / uploadFiles.value.length) * 100)
+      })
+      ids.push(data.id)
       uploadPercent.value = Math.round(((index + 1) / uploadFiles.value.length) * 100)
     }
     return ids
-  } finally { uploading.value = false }
+  } finally {
+    uploading.value = false
+    lockScroll(false)
+  }
 }
 async function loadCart() { cart.value = await request('/Customer/Cart/index') }
 async function openCart() { return navigate('cart') }
@@ -628,7 +653,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             <div class="pd-total"><span>Total Harga</span><strong>{{ rupiah.format(orderTotal) }}</strong></div>
           </div>
 
-          <p v-if="uploading" class="pd-hint">Mengunggah… {{ uploadPercent }}%</p>
           <button class="cta product-add" type="button" :disabled="addingToCart || uploading" @click="addCart">{{ addingToCart || uploading ? 'Memproses…' : '(+) Tambah ke Keranjang' }}</button>
         </div>
       </div>
@@ -736,6 +760,16 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <div ref="googleBtn" class="google-slot" :aria-busy="googleLoading"></div>
         <p v-if="googleLoading" class="muted">Memuat tombol Google…</p>
         <p v-if="googleError" class="error">{{ googleError }}</p>
+      </div>
+    </div>
+    <div v-show="uploading" class="upload-overlay" role="alertdialog" aria-modal="true" aria-busy="true" aria-label="Mengunggah berkas">
+      <div class="upload-card">
+        <div class="upload-spinner" aria-hidden="true"></div>
+        <h3>Mengunggah berkas…</h3>
+        <p class="upload-meta">{{ uploadIndex }} dari {{ uploadTotal }} berkas</p>
+        <div class="upload-bar"><span :style="{ width: uploadPercent + '%' }"></span></div>
+        <strong class="upload-percent">{{ uploadPercent }}%</strong>
+        <p class="upload-note">Mohon jangan tutup halaman ini.</p>
       </div>
     </div>
     <nav v-if="!product" class="bottom-nav" aria-label="Navigasi bawah">
