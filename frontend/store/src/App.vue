@@ -197,6 +197,15 @@ function getBrowserLocation() {
     )
   })
 }
+async function goToMyLocation() {
+  if (!mapInstance) return
+  const location = await getBrowserLocation()
+  if (!location) { areaStatus.value = 'Lokasi tidak tersedia. Izinkan akses lokasi di browser.'; return }
+  const position = { lat: location.lat, lng: location.lng }
+  mapInstance.setCenter(position); mapInstance.setZoom(16)
+  if (markerInstance) markerInstance.setPosition(position)
+  setMapPoint(location.lat, location.lng)
+}
 async function startMap() {
   if (!googleMapsKey.value || !mapEl.value) return
   const ready = await loadGoogleMaps(); if (!ready || !mapEl.value) return
@@ -507,7 +516,12 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <div class="field">
           <span>Titik lokasi (Google Maps)</span>
           <div ref="mapSearch" class="map-search"></div>
-          <div ref="mapEl" class="map-box"></div>
+          <div class="map-wrap">
+            <div ref="mapEl" class="map-box"></div>
+            <button type="button" class="map-loc-btn" title="Titik Saya" aria-label="Titik Saya" @click="goToMyLocation">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/></svg>
+            </button>
+          </div>
           <small v-if="!googleMapsKey" class="muted">Google Maps API key belum diatur.</small>
           <small v-else-if="addressForm.latitude" class="muted">Titik: {{ addressForm.latitude }}, {{ addressForm.longitude }}</small>
         </div>

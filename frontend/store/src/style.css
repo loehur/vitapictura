@@ -705,6 +705,28 @@
     border-radius: var(--radius-card);
     background: var(--color-brand-50);
   }
+  .map-wrap {
+    position: relative;
+  }
+  .map-loc-btn {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-surface);
+    color: var(--color-brand-700);
+    box-shadow: 0 4px 14px rgba(43, 23, 79, 0.25);
+  }
+  .map-box .gm-fullscreen-control,
+  .map-box .gm-bundled-control {
+    display: none !important;
+  }
   .map-search {
     display: block;
   }
