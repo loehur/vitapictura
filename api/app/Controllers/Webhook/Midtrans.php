@@ -5,10 +5,12 @@ use App\Services\Shipping;
 class Midtrans extends Controller {
  public function notification():void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);
-  $b=$this->getBody();$key=(string)(\Env::MIDTRANS_SERVER_KEY??'');if($key==='')$this->error('Webhook is not configured',503);
+  $b=$this->getBody();
+  $order=$this->db()->query('SELECT * FROM vp_orders WHERE order_number=? LIMIT 1',[(string)($b['order_id']??'')])->row_array();
+  if(!$order)$this->success(null,'Notification ignored');
+  $key=(string)(\Env::MIDTRANS_SERVER_KEY??'');if($key==='')$this->error('Webhook is not configured',503);
   $signature=hash('sha512',(string)($b['order_id']??'').(string)($b['status_code']??'').(string)($b['gross_amount']??'').$key);
   if(empty($b['signature_key'])||!hash_equals($signature,(string)$b['signature_key']))$this->error('Invalid Midtrans signature',401);
-  $order=$this->db()->query('SELECT * FROM vp_orders WHERE order_number=? LIMIT 1',[(string)$b['order_id']])->row_array();if(!$order)$this->error('Order not found',404);
   if(number_format((float)$order['total'],2,'.','')!==number_format((float)($b['gross_amount']??-1),2,'.',''))$this->error('Payment amount mismatch',422);
   $tx=(string)($b['transaction_status']??'');$fraud=(string)($b['fraud_status']??'accept');
   $paymentStatus=in_array($tx,['settlement','capture'],true)&&$fraud!=='deny'?'paid':(in_array($tx,['expire'],true)?'expired':(in_array($tx,['cancel','deny','failure'],true)?'failed':'pending'));
