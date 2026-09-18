@@ -35,7 +35,7 @@ function flash(message) { notice.value = message; window.clearTimeout(flashTimer
 // ---- Auth ----
 async function login() {
   busy.value = true; error.value = ''
-  try { user.value = await api('Auth/login', form.value); form.value = { email: '', password: '' }; await loadView('orders'); flash('Berhasil masuk.') }
+  try { user.value = await api('Auth/login', form.value); form.value = { email: '', password: '' }; view.value = 'dashboard'; await loadDashboard(); flash('Berhasil masuk.') }
   catch (e) { error.value = e.message }
   finally { busy.value = false }
 }
@@ -288,7 +288,7 @@ const settingsSaving = ref(false)
 async function loadSettings() { try { const d = await api('Settings/index'); settings.value = Object.assign({}, settings.value, d) } catch (e) { error.value = e.message } }
 async function saveSettings() { settingsSaving.value = true; try { await api('Settings/save', settings.value); flash('Pengaturan disimpan.') } catch (e) { error.value = e.message } finally { settingsSaving.value = false } }
 
-onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('dashboard') } catch {} })
+onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'dashboard'; await loadDashboard() } catch {} })
 </script>
 
 <template>
