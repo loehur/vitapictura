@@ -395,8 +395,8 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             <div class="pd-filebox">
               <label class="pd-radio"><input v-model="fileMethod" type="radio" value="1"> Upload di sini</label>
               <div v-if="fileMethod === '1'" class="pd-sublabel">
-                <input type="file" multiple accept="image/jpeg,image/png,application/pdf,application/zip" @change="onFilesChange">
-                <small>JPG, PNG, PDF, ZIP · maksimal 50 MB per file</small>
+                <input type="file" multiple accept="image/jpeg,image/png,application/pdf,application/zip,application/vnd.rar,application/x-rar-compressed" @change="onFilesChange">
+                <small>JPG, PNG, PDF, ZIP, RAR · maksimal 50 MB per file</small>
                 <span v-if="uploadFiles.length" class="pd-hint">{{ uploadFiles.length }} file dipilih</span>
               </div>
               <label class="pd-radio"><input v-model="fileMethod" type="radio" value="2"> Share File, Link Drive</label>
