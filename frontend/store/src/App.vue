@@ -133,7 +133,7 @@ function renderGoogleButton() {
 async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId } catch(e){ googleError.value = e.message } }
 async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); loginOpen.value = false; await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
 async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; if(await ensureGoogleReady()){ await nextTick(); renderGoogleButton() } }
-async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;addressBook.value=true } catch(e){error.value=e.message} }
+async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;resetViews();addressBook.value=true } catch(e){error.value=e.message} }
 async function saveAddress() { try { await post('/Customer/Addresses/save', addressForm.value); addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false}; await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
@@ -169,7 +169,7 @@ async function uploadSelection() {
   } finally { uploading.value = false }
 }
 async function loadCart() { cart.value = await request('/Customer/Cart/index') }
-async function openCart() { if(!customer.value){startGoogleLogin();return}try{await loadCart();cartOpen.value=true}catch(e){error.value=e.message} }
+async function openCart() { if(!customer.value){startGoogleLogin();return}try{await loadCart();resetViews();cartOpen.value=true}catch(e){error.value=e.message} }
 async function updateCartQty(item, quantity) { try { await post(`/Customer/Cart/update/${item.id}`, { quantity }); await loadCart() } catch(e){ error.value=e.message } }
 async function removeCartItem(item) { try { await post(`/Customer/Cart/remove/${item.id}`); await loadCart(); flash('Item dihapus dari keranjang.') } catch(e){ error.value=e.message } }
 async function addCart() {
@@ -187,7 +187,7 @@ async function addCart() {
     product.value = null
   } catch (e) { error.value = e.message } finally { addingToCart.value = false }
 }
-async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;ordersOpen.value=true}catch(e){error.value=e.message} }
+async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;resetViews();ordersOpen.value=true}catch(e){error.value=e.message} }
 async function openProduct(slug) {
   try {
     const data = await request(`show/${slug}`)
@@ -204,10 +204,12 @@ async function openProduct(slug) {
     uploadPercent.value = 0
     activeTab.value = 0
     zoomUrl.value = null
+    resetViews()
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e) { error.value = e.message }
 }
-function goHome() { product.value = null; cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; window.scrollTo({ top: 0, behavior: 'smooth' }) }
+function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false }
+function goHome() { product.value = null; resetViews(); window.scrollTo({ top: 0, behavior: 'smooth' }) }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
@@ -249,7 +251,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
     </div>
     <div id="main" tabindex="-1">
     <template v-if="ordersOpen">
-      <button class="back" type="button" @click="ordersOpen = false">
+      <button class="back" type="button" @click="goHome()">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
         Kembali
       </button>
@@ -277,7 +279,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </template>
     <template v-else-if="cartOpen">
-      <button class="back" type="button" @click="cartOpen = false">
+      <button class="back" type="button" @click="goHome()">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
         Kembali
       </button>
@@ -322,7 +324,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </template>
     <template v-else-if="addressBook">
-      <button class="back" type="button" @click="addressBook = false">
+      <button class="back" type="button" @click="goHome()">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
         Kembali
       </button>
