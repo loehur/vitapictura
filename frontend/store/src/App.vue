@@ -47,6 +47,11 @@ const googleLoading = ref(false)
 const googleError = ref('')
 const googleBtn = ref(null)
 let googleButtonRendered = false
+let modalHistory = false
+let suppressPop = false
+function pushModalHistory() { if (modalHistory) return; modalHistory = true; window.history.pushState({ ...(window.history.state || {}), modal: true }, '') }
+function popModalHistory() { if (!modalHistory) return; modalHistory = false; suppressPop = true; window.history.back() }
+function closeLoginModal() { loginOpen.value = false; popModalHistory() }
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan populer')
@@ -142,8 +147,8 @@ function renderGoogleButton() {
   googleButtonRendered = true
 }
 async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; googleMapsKey.value=data.googleMapsApiKey||'' } catch(e){ googleError.value = e.message } }
-async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); loginOpen.value = false; await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
-async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; if(await ensureGoogleReady()){ await nextTick(); renderGoogleButton() } }
+async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); closeLoginModal(); await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
+async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; pushModalHistory(); if(await ensureGoogleReady()){ await nextTick(); renderGoogleButton() } }
 const WILAYAH_API = 'https://www.emsifa.com/api-wilayah-indonesia/api'
 async function fetchWilayah(path) { const response = await fetch(`${WILAYAH_API}/${path}`); if (!response.ok) throw new Error('Gagal memuat data wilayah'); return response.json() }
 function resetAddressForm() { addressForm.value = { label: '', recipient_name: '', recipient_phone: '', address_line: '', notes: '', province_id: '', province_name: '', regency_id: '', regency_name: '', district_id: '', district_name: '', village_id: '', village_name: '', postal_code: '', area_id: '', area_name: '', latitude: null, longitude: null, is_default: false }; wilayah.value.regencies = []; wilayah.value.districts = []; wilayah.value.villages = []; areaStatus.value = '' }
@@ -283,8 +288,8 @@ async function resolveArea() {
 }
 function addressHierarchy(item) { return [item.villageName, item.districtName, item.regencyName, item.provinceName, item.postalCode].filter(Boolean).join(', ') }
 async function openAddresses() { return navigate('account') }
-function openAddressModal() { addressModalOpen.value = true; nextTick(() => startMap()) }
-function closeAddressModal() { addressModalOpen.value = false }
+function openAddressModal() { addressModalOpen.value = true; pushModalHistory(); nextTick(() => startMap()) }
+function closeAddressModal() { addressModalOpen.value = false; popModalHistory() }
 async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) setMarkerPosition(null); closeAddressModal(); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
@@ -379,7 +384,7 @@ function goHome() { return navigate('home') }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
-onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart();window.addEventListener('popstate',()=>applyRoute(parseRoute(window.location.pathname)));await applyRoute(parseRoute(window.location.pathname))})
+onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart();window.addEventListener('popstate',()=>{if(suppressPop){suppressPop=false;return}if(loginOpen.value){loginOpen.value=false;modalHistory=false;return}if(addressModalOpen.value){addressModalOpen.value=false;modalHistory=false;return}applyRoute(parseRoute(window.location.pathname))});await applyRoute(parseRoute(window.location.pathname))})
 </script>
 
 <template>
@@ -633,6 +638,15 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <button v-for="(tab, index) in product.tabs" :key="index" type="button" :class="{ 'is-active': activeTab === index }" @click="activeTab = index">{{ tab.title }}</button>
         </div>
         <div class="pd-tabbody" v-html="product.tabs[activeTab]?.html || ''"></div>
+      </div>
+
+      <div class="pd-sticky">
+        <div class="pd-qty">
+          <button type="button" aria-label="Kurangi jumlah" @click="changeQty(-1)">−</button>
+          <input v-model.number="qty" type="number" min="1">
+          <button type="button" aria-label="Tambah jumlah" @click="changeQty(1)">+</button>
+        </div>
+        <div class="pd-total"><span>Total Harga</span><strong>{{ rupiah.format(orderTotal) }}</strong></div>
       </div>
 
       <div class="pd-mobilebar">
