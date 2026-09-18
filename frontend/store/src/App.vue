@@ -11,7 +11,16 @@ const customer = ref(null)
 const googleClientId = ref('')
 const addressBook = ref(false)
 const addresses = ref([])
-const addressForm = ref({ label: '', recipient_name: '', recipient_phone: '', address_line: '', is_default: false })
+const addressForm = ref({ label: '', recipient_name: '', recipient_phone: '', address_line: '', notes: '', province_id: '', province_name: '', regency_id: '', regency_name: '', district_id: '', district_name: '', village_id: '', village_name: '', postal_code: '', area_id: '', area_name: '', latitude: null, longitude: null, is_default: false })
+const googleMapsKey = ref('')
+const wilayah = ref({ provinces: [], regencies: [], districts: [], villages: [] })
+const mapEl = ref(null)
+const mapSearch = ref(null)
+const areaStatus = ref('')
+let mapInstance = null
+let markerInstance = null
+let autocompleteInstance = null
+let mapsPromise = null
 const optionSelection = ref({})
 const manualImageKey = ref(null)
 const qty = ref(1)
@@ -130,11 +139,94 @@ function renderGoogleButton() {
   window.google.accounts.id.renderButton(googleBtn.value, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'id', width: 280 })
   googleButtonRendered = true
 }
-async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId } catch(e){ googleError.value = e.message } }
+async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; googleMapsKey.value=data.googleMapsApiKey||'' } catch(e){ googleError.value = e.message } }
 async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); loginOpen.value = false; await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
 async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; if(await ensureGoogleReady()){ await nextTick(); renderGoogleButton() } }
-async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;resetViews();addressBook.value=true } catch(e){error.value=e.message} }
-async function saveAddress() { try { await post('/Customer/Addresses/save', addressForm.value); addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false}; await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
+const WILAYAH_API = 'https://www.emsifa.com/api-wilayah-indonesia/api'
+async function fetchWilayah(path) { const response = await fetch(`${WILAYAH_API}/${path}`); if (!response.ok) throw new Error('Gagal memuat data wilayah'); return response.json() }
+function resetAddressForm() { addressForm.value = { label: '', recipient_name: '', recipient_phone: '', address_line: '', notes: '', province_id: '', province_name: '', regency_id: '', regency_name: '', district_id: '', district_name: '', village_id: '', village_name: '', postal_code: '', area_id: '', area_name: '', latitude: null, longitude: null, is_default: false }; wilayah.value.regencies = []; wilayah.value.districts = []; wilayah.value.villages = []; areaStatus.value = '' }
+async function loadProvinces() { if (wilayah.value.provinces.length) return; wilayah.value.provinces = await fetchWilayah('provinces.json') }
+async function loadRegencies() { const id = addressForm.value.province_id; wilayah.value.regencies = id ? await fetchWilayah(`regencies/${id}.json`) : [] }
+async function loadDistricts() { const id = addressForm.value.regency_id; wilayah.value.districts = id ? await fetchWilayah(`districts/${id}.json`) : [] }
+async function loadVillages() { const id = addressForm.value.district_id; wilayah.value.villages = id ? await fetchWilayah(`villages/${id}.json`) : [] }
+async function onProvinceChange() { const item = wilayah.value.provinces.find((x) => x.id === addressForm.value.province_id); addressForm.value.province_name = item?.name || ''; addressForm.value.regency_id = ''; addressForm.value.regency_name = ''; addressForm.value.district_id = ''; addressForm.value.district_name = ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.regencies = []; wilayah.value.districts = []; wilayah.value.villages = []; try { await loadRegencies() } catch (e) { error.value = e.message } }
+async function onRegencyChange() { const item = wilayah.value.regencies.find((x) => x.id === addressForm.value.regency_id); addressForm.value.regency_name = item?.name || ''; addressForm.value.district_id = ''; addressForm.value.district_name = ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.districts = []; wilayah.value.villages = []; try { await loadDistricts() } catch (e) { error.value = e.message } }
+async function onDistrictChange() { const item = wilayah.value.districts.find((x) => x.id === addressForm.value.district_id); addressForm.value.district_name = item?.name || ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.villages = []; try { await loadVillages() } catch (e) { error.value = e.message } }
+function onVillageChange() { const item = wilayah.value.villages.find((x) => x.id === addressForm.value.village_id); addressForm.value.village_name = item?.name || '' }
+function normalizeName(value) { return String(value || '').toLowerCase().replace(/\b(kota|kabupaten|kecamatan|kelurahan|desa|kab|kec)\b\.?/g, '').replace(/[^a-z0-9]+/g, '') }
+function matchByName(list, name) { const target = normalizeName(name); if (!target) return null; return list.find((x) => normalizeName(x.name) === target) || list.find((x) => { const n = normalizeName(x.name); return n && (n.includes(target) || target.includes(n)) }) || null }
+function loadGoogleMaps() {
+  if (window.google?.maps) return Promise.resolve(true)
+  if (!googleMapsKey.value) return Promise.resolve(false)
+  if (mapsPromise) return mapsPromise
+  mapsPromise = new Promise((resolve) => {
+    const callback = '__vpInitMaps'
+    window[callback] = () => resolve(true)
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey.value)}&libraries=places&language=id&region=ID&callback=${callback}`
+    script.async = true
+    script.onerror = () => resolve(false)
+    document.head.appendChild(script)
+  })
+  return mapsPromise
+}
+function setMapPoint(lat, lng) { addressForm.value.latitude = Number(lat); addressForm.value.longitude = Number(lng) }
+async function applyAddressComponents(components) {
+  const pick = (type) => (components || []).find((c) => c.types.includes(type))?.long_name || ''
+  const province = pick('administrative_area_level_1'); const city = pick('administrative_area_level_2'); const district = pick('administrative_area_level_3'); const village = pick('administrative_area_level_4') || pick('sublocality_level_1'); const zip = pick('postal_code')
+  if (zip) addressForm.value.postal_code = zip
+  try {
+    await loadProvinces()
+    const p = matchByName(wilayah.value.provinces, province); if (!p) return
+    addressForm.value.province_id = p.id; addressForm.value.province_name = p.name; await loadRegencies()
+    const r = matchByName(wilayah.value.regencies, city); if (!r) return
+    addressForm.value.regency_id = r.id; addressForm.value.regency_name = r.name; await loadDistricts()
+    const d = matchByName(wilayah.value.districts, district); if (!d) return
+    addressForm.value.district_id = d.id; addressForm.value.district_name = d.name; await loadVillages()
+    const v = matchByName(wilayah.value.villages, village); if (!v) return
+    addressForm.value.village_id = v.id; addressForm.value.village_name = v.name
+  } catch (e) {}
+}
+async function startMap() {
+  if (!googleMapsKey.value || !mapEl.value) return
+  const ready = await loadGoogleMaps(); if (!ready || !mapEl.value) return
+  const hasPoint = addressForm.value.latitude !== null && addressForm.value.longitude !== null
+  const center = hasPoint ? { lat: Number(addressForm.value.latitude), lng: Number(addressForm.value.longitude) } : { lat: -0.789275, lng: 113.921327 }
+  if (!mapInstance) {
+    mapInstance = new google.maps.Map(mapEl.value, { center, zoom: hasPoint ? 16 : 5, mapTypeControl: false, streetViewControl: false, fullscreenControl: false })
+    markerInstance = new google.maps.Marker({ map: mapInstance, position: hasPoint ? center : null, draggable: true })
+    markerInstance.addListener('dragend', () => { const p = markerInstance.getPosition(); if (p) setMapPoint(p.lat(), p.lng()) })
+    if (mapSearch.value) {
+      autocompleteInstance = new google.maps.places.Autocomplete(mapSearch.value, { componentRestrictions: { country: 'id' }, fields: ['geometry', 'formatted_address', 'address_components', 'name'] })
+      autocompleteInstance.addListener('place_changed', () => {
+        const place = autocompleteInstance.getPlace()
+        if (!place.geometry?.location) return
+        const location = place.geometry.location
+        mapInstance.setCenter(location); mapInstance.setZoom(16); markerInstance.setPosition(location)
+        setMapPoint(location.lat(), location.lng())
+        if (place.formatted_address) addressForm.value.address_line = place.formatted_address
+        applyAddressComponents(place.address_components)
+      })
+    }
+  } else {
+    google.maps.event.trigger(mapInstance, 'resize')
+    if (hasPoint) { mapInstance.setCenter(center); if (markerInstance) markerInstance.setPosition(center) }
+  }
+}
+async function resolveArea() {
+  areaStatus.value = ''
+  if (!addressForm.value.village_name && !addressForm.value.district_name && !addressForm.value.regency_name) return
+  try {
+    const data = await post('/Customer/Addresses/lookup', { village_name: addressForm.value.village_name, district_name: addressForm.value.district_name, regency_name: addressForm.value.regency_name, province_name: addressForm.value.province_name })
+    addressForm.value.area_id = data.areaId || ''
+    addressForm.value.area_name = data.areaName || ''
+    if (data.postalCode && !addressForm.value.postal_code) addressForm.value.postal_code = data.postalCode
+    areaStatus.value = data.areaName ? `Area Biteship: ${data.areaName}` : ''
+  } catch (e) { areaStatus.value = `Area Biteship belum ditentukan: ${e.message}` }
+}
+function addressHierarchy(item) { return [item.villageName, item.districtName, item.regencyName, item.provinceName, item.postalCode].filter(Boolean).join(', ') }
+async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;resetViews();addressBook.value=true; await nextTick(); loadProvinces().catch(()=>{}); startMap() } catch(e){error.value=e.message} }
+async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) markerInstance.setPosition(null); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }
@@ -339,6 +431,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </div>
         <span>{{ item.recipientName }} · {{ item.recipientPhone }}</span>
         <span>{{ item.addressLine }}</span>
+        <span v-if="addressHierarchy(item)" class="address__area">{{ addressHierarchy(item) }}</span>
         <div class="address__actions">
           <button v-if="!item.isDefault" class="link" type="button" @click="setDefaultAddress(item)">Jadikan utama</button>
           <button class="link-danger" type="button" @click="removeAddress(item)">Hapus</button>
@@ -350,8 +443,36 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <label class="field"><span>Label</span><input v-model="addressForm.label" required placeholder="Contoh: Rumah"></label>
         <label class="field"><span>Nama penerima</span><input v-model="addressForm.recipient_name" required placeholder="Nama lengkap"></label>
         <label class="field"><span>Nomor WhatsApp</span><input v-model="addressForm.recipient_phone" required placeholder="08xxxxxxxxxx"></label>
-        <label class="field"><span>Alamat lengkap</span><textarea v-model="addressForm.address_line" required placeholder="Jalan, nomor, kelurahan, kota, kode pos"></textarea></label>
+
+        <div class="field-grid">
+          <label class="field"><span>Provinsi</span>
+            <select v-model="addressForm.province_id" @change="onProvinceChange"><option value="">-</option><option v-for="p in wilayah.provinces" :key="p.id" :value="p.id">{{ p.name }}</option></select>
+          </label>
+          <label class="field"><span>Kota/Kabupaten</span>
+            <select v-model="addressForm.regency_id" :disabled="!addressForm.province_id" @change="onRegencyChange"><option value="">-</option><option v-for="r in wilayah.regencies" :key="r.id" :value="r.id">{{ r.name }}</option></select>
+          </label>
+          <label class="field"><span>Kecamatan</span>
+            <select v-model="addressForm.district_id" :disabled="!addressForm.regency_id" @change="onDistrictChange"><option value="">-</option><option v-for="d in wilayah.districts" :key="d.id" :value="d.id">{{ d.name }}</option></select>
+          </label>
+          <label class="field"><span>Kelurahan/Desa</span>
+            <select v-model="addressForm.village_id" :disabled="!addressForm.district_id" @change="onVillageChange"><option value="">-</option><option v-for="v in wilayah.villages" :key="v.id" :value="v.id">{{ v.name }}</option></select>
+          </label>
+        </div>
+
+        <label class="field"><span>Kode pos</span><input v-model="addressForm.postal_code" placeholder="28111"></label>
+
+        <div class="field">
+          <span>Titik lokasi (Google Maps)</span>
+          <input ref="mapSearch" type="text" placeholder="Cari alamat / tempat">
+          <div ref="mapEl" class="map-box"></div>
+          <small v-if="!googleMapsKey" class="muted">Google Maps API key belum diatur.</small>
+          <small v-else-if="addressForm.latitude" class="muted">Titik: {{ addressForm.latitude }}, {{ addressForm.longitude }}</small>
+        </div>
+
+        <label class="field"><span>Alamat lengkap</span><textarea v-model="addressForm.address_line" required placeholder="Jalan, nomor, patokan"></textarea></label>
+        <label class="field"><span>Catatan (opsional)</span><input v-model="addressForm.notes" placeholder="Patokan, jam kirim, dll"></label>
         <label class="check"><input v-model="addressForm.is_default" type="checkbox"> Jadikan alamat utama</label>
+        <p v-if="areaStatus" class="muted">{{ areaStatus }}</p>
         <button class="cta" type="submit">Simpan alamat</button>
       </form>
     </template>

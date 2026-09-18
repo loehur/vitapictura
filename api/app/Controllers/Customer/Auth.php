@@ -5,7 +5,7 @@ use App\Helpers\CustomerAuth;
 
 class Auth extends Controller
 {
-    public function config(): void { $this->handleCors(); if(!$this->isGet())$this->error('Method not allowed',405); $this->success(['googleClientId'=>(string)(\Env::GOOGLE_OAUTH_CLIENT_ID??'')], 'Authentication configuration loaded'); }
+    public function config(): void { $this->handleCors(); if(!$this->isGet())$this->error('Method not allowed',405); $this->success(['googleClientId'=>(string)(\Env::GOOGLE_OAUTH_CLIENT_ID??''),'googleMapsApiKey'=>(string)(\Env::GOOGLE_MAPS_API_KEY??'')], 'Authentication configuration loaded'); }
     public function google(): void {
         $this->handleCors(); if(!$this->isPost())$this->error('Method not allowed',405); CustomerAuth::ensureSchema($this->db());
         $credential=trim((string)($this->getBody()['credential']??'')); if($credential==='')$this->error('Google credential is required',422);

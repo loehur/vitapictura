@@ -8,5 +8,6 @@ Apply against a fresh Vita Pictura database, in this exact order:
 006_payments.sql
 007_order_fulfillment.sql
 008_legacy_detail.sql
+009_address_wilayah.sql
 
 Run the demo seed files only in local development. Never run them in staging or production.

@@ -32,6 +32,8 @@ class Env
 
     /** Google Identity Services untuk login pelanggan; jangan commit Env.php. */
     const GOOGLE_OAUTH_CLIENT_ID = '';
+    /** Google Maps Javascript API (Places + Maps) untuk memilih titik lokasi alamat. */
+    const GOOGLE_MAPS_API_KEY = '';
     const BITESHIP_API_KEY = '';
     const BITESHIP_ORIGIN_AREA_ID = '';
     const BITESHIP_ORIGIN_LATITUDE = 0.0;

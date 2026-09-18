@@ -680,15 +680,34 @@
     margin-top: 2rem;
   }
   .address-form input:not([type="checkbox"]),
-  .address-form textarea {
+  .address-form textarea,
+  .address-form select {
     padding: 0.85rem;
     border: 1px solid var(--color-line);
     border-radius: var(--radius-field);
     font: inherit;
+    background: var(--color-surface);
   }
   .address-form textarea {
     min-height: 6rem;
     resize: vertical;
+  }
+  .field-grid {
+    display: grid;
+    gap: 0.7rem;
+  }
+  @media (min-width: 36rem) {
+    .field-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .map-box {
+    height: 15rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background: var(--color-brand-50);
+  }
+  .address__area {
+    color: var(--color-muted);
+    font-size: 0.82rem;
   }
 
   .upload {
