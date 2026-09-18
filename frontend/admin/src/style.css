@@ -592,7 +592,8 @@
     font-weight: 700;
   }
   .row-actions {
-    display: flex;
+    display: inline-flex;
+    align-items: center;
     gap: 0.6rem;
     white-space: nowrap;
   }

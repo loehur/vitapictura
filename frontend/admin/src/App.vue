@@ -402,9 +402,11 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                   <td data-label="Produk">{{ item.product_count }}</td>
                   <td data-label="Status"><span class="status" :class="`status--${item.status === 'published' ? 'completed' : 'unpaid'}`">{{ item.status }}</span></td>
                   <td data-label="Unggulan">{{ item.is_featured ? 'Ya' : '—' }}</td>
-                  <td data-label="Aksi" class="row-actions">
-                    <button class="link" type="button" @click="openCategory(item)">Edit</button>
-                    <button class="link-danger" type="button" @click="removeCategory(item)">Hapus</button>
+                  <td data-label="Aksi">
+                    <span class="row-actions">
+                      <button class="link" type="button" @click="openCategory(item)">Edit</button>
+                      <button class="link-danger" type="button" @click="removeCategory(item)">Hapus</button>
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -451,9 +453,11 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                   <td data-label="Harga">{{ rupiah.format(p.base_price) }}</td>
                   <td data-label="Status"><span class="status" :class="`status--${p.status === 'published' ? 'completed' : 'unpaid'}`">{{ p.status }}</span></td>
                   <td data-label="Unggulan">{{ p.is_featured ? 'Ya' : '—' }}</td>
-                  <td data-label="Aksi" class="row-actions">
-                    <button class="link" type="button" @click="openProduct(p)">Edit</button>
-                    <button class="link-danger" type="button" @click="removeProduct(p)">Hapus</button>
+                  <td data-label="Aksi">
+                    <span class="row-actions">
+                      <button class="link" type="button" @click="openProduct(p)">Edit</button>
+                      <button class="link-danger" type="button" @click="removeProduct(p)">Hapus</button>
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -617,7 +621,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                 <td data-label="Harga +">{{ rupiah.format(v.price_delta) }}</td>
                 <td data-label="Suffix">{{ v.image_suffix || '—' }}</td>
                 <td data-label="Aktif">{{ v.is_active ? 'Ya' : 'Tidak' }}</td>
-                <td data-label="Aksi" class="row-actions"><button class="link" type="button" @click="openValue(group, v)">Edit</button><button class="link-danger" type="button" @click="removeValue(v)">Hapus</button></td>
+                <td data-label="Aksi"><span class="row-actions"><button class="link" type="button" @click="openValue(group, v)">Edit</button><button class="link-danger" type="button" @click="removeValue(v)">Hapus</button></span></td>
               </tr>
             </tbody>
           </table>
@@ -644,7 +648,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                   <td data-label="Harga +">{{ rupiah.format(v.price_delta) }}</td>
                   <td data-label="Suffix">{{ v.image_suffix || '—' }}</td>
                   <td data-label="Aktif">{{ v.is_active ? 'Ya' : 'Tidak' }}</td>
-                  <td data-label="Aksi" class="row-actions"><button class="link" type="button" @click="openValue(sub, v)">Edit</button><button class="link-danger" type="button" @click="removeValue(v)">Hapus</button></td>
+                  <td data-label="Aksi"><span class="row-actions"><button class="link" type="button" @click="openValue(sub, v)">Edit</button><button class="link-danger" type="button" @click="removeValue(v)">Hapus</button></span></td>
                 </tr>
               </tbody>
             </table>
