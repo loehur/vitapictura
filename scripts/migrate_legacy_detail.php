@@ -126,8 +126,14 @@ while ($product = $products->fetch_assoc()) {
             if (!is_dir($malDir)) @mkdir($malDir, 0755, true);
             foreach ($malFiles as $file) {
                 $from = $oldAssets . '/img/mal/' . $file;
-                if (is_file($from)) @copy($from, $malDir . '/' . $file);
-                $malOut[] = ['name' => $file, 'url' => $mediaUrl . '/mal/' . rawurlencode($file)];
+                $actual = $file;
+                if (!is_file($from)) {
+                    $base = pathinfo($file, PATHINFO_FILENAME);
+                    $candidates = glob($oldAssets . '/img/mal/' . $base . '.*') ?: [];
+                    if ($candidates) { $actual = basename($candidates[0]); $from = $candidates[0]; }
+                }
+                if (is_file($from)) @copy($from, $malDir . '/' . $actual);
+                $malOut[] = ['name' => $actual, 'url' => $mediaUrl . '/mal/' . rawurlencode($actual)];
                 $stats['mal']++;
             }
         }
