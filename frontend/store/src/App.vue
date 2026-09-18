@@ -187,6 +187,16 @@ async function applyAddressComponents(components) {
     addressForm.value.village_id = v.id; addressForm.value.village_name = v.name
   } catch (e) {}
 }
+function getBrowserLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null)
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 }
+    )
+  })
+}
 async function startMap() {
   if (!googleMapsKey.value || !mapEl.value) return
   const ready = await loadGoogleMaps(); if (!ready || !mapEl.value) return
@@ -196,6 +206,17 @@ async function startMap() {
     mapInstance = new google.maps.Map(mapEl.value, { center, zoom: hasPoint ? 16 : 5, mapTypeControl: false, streetViewControl: false, fullscreenControl: false })
     markerInstance = new google.maps.Marker({ map: mapInstance, position: hasPoint ? center : null, draggable: true })
     markerInstance.addListener('dragend', () => { const p = markerInstance.getPosition(); if (p) setMapPoint(p.lat(), p.lng()) })
+    mapInstance.addListener('click', (event) => { if (event.latLng) { markerInstance.setPosition(event.latLng); setMapPoint(event.latLng.lat(), event.latLng.lng()) } })
+    if (!hasPoint) {
+      getBrowserLocation().then((location) => {
+        if (location && addressForm.value.latitude === null && markerInstance) {
+          const position = { lat: location.lat, lng: location.lng }
+          mapInstance.setCenter(position); mapInstance.setZoom(15)
+          markerInstance.setPosition(position)
+          setMapPoint(location.lat, location.lng)
+        }
+      })
+    }
     if (mapSearch.value) {
       if (google.maps.places.PlaceAutocompleteElement) {
         const element = new google.maps.places.PlaceAutocompleteElement({ includedRegionCodes: ['id'] })
