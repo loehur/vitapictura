@@ -35,6 +35,7 @@ class Env
     /** Google Maps Javascript API (Places + Maps) untuk memilih titik lokasi alamat. */
     const GOOGLE_MAPS_API_KEY = '';
     const BITESHIP_API_KEY = '';
+    const BITESHIP_WEBHOOK_TOKEN = ''; // opsional: verifikasi header X-Biteship-Token / ?token=
     const BITESHIP_ORIGIN_AREA_ID = '';
     const BITESHIP_ORIGIN_LATITUDE = 0.0;
     const BITESHIP_ORIGIN_LONGITUDE = 0.0;
