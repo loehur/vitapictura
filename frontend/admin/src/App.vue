@@ -127,7 +127,7 @@ async function openProduct(row) {
   } else { prodForm.value = emptyProduct(); prodMedia.value = [] }
   prodModal.value = true
 }
-function closeProduct() { prodModal.value = false; prodMedia.value = [] }
+function closeProduct() { prodModal.value = false; prodMedia.value = []; variantModal.value = false; variants.value = [] }
 function onProductName() { if (!prodForm.value.id) prodForm.value.slug = slugify(prodForm.value.name) }
 async function saveProduct() {
   prodSaving.value = true
@@ -167,6 +167,56 @@ async function uploadMedia(event) {
 async function removeMedia(item) { if (!window.confirm('Hapus media ini?')) return; try { await api(`Products/remove-media/${item.id}`, {}); await loadMedia(prodForm.value.id); flash('Media dihapus.') } catch (e) { error.value = e.message } }
 async function moveMedia(item, dir) { const list = [...prodMedia.value]; const i = list.findIndex((m) => m.id === item.id); const j = i + dir; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; prodMedia.value = list; try { await api(`Products/reorder-media/${prodForm.value.id}`, { order: list.map((m) => m.id) }) } catch (e) { error.value = e.message } }
 async function setCover(item) { try { const d = await api(`Products/set-cover/${prodForm.value.id}`, { media_id: item.id }); prodForm.value.cover_image_url = d.coverImage; flash('Cover diperbarui.') } catch (e) { error.value = e.message } }
+
+// ---- Variants (option groups & values) ----
+const variantModal = ref(false)
+const variants = ref([])
+const variantLoading = ref(false)
+const variantProduct = ref({ id: null, name: '' })
+const groupModal = ref(false)
+const groupSaving = ref(false)
+const groupForm = ref(emptyGroup())
+const valueModal = ref(false)
+const valueSaving = ref(false)
+const valueForm = ref(emptyValue())
+function emptyGroup() { return { id: null, product_id: null, name: '', group_level: 1, parent_group_id: '', is_required: true, sort_order: 0 } }
+function emptyValue() { return { id: null, option_group_id: null, name: '', image_suffix: '', parent_value_id: '', price_delta: 0, weight_delta_grams: 0, length_delta_mm: 0, width_delta_mm: 0, height_delta_mm: 0, sort_order: 0, is_active: true } }
+const level1Groups = computed(() => variants.value.filter((g) => g.group_level === 1))
+function subGroups(parent) { return variants.value.filter((g) => g.group_level === 2 && g.parent_group_id === parent.id) }
+function valueName(id) { if (!id) return ''; for (const g of variants.value) { const v = g.values.find((x) => x.id === id); if (v) return v.name } return '' }
+async function openVariants() { if (!prodForm.value.id) return; variantProduct.value = { id: prodForm.value.id, name: prodForm.value.name }; variantModal.value = true; await loadVariants() }
+function closeVariants() { variantModal.value = false; variants.value = [] }
+async function loadVariants() { variantLoading.value = true; try { variants.value = (await api(`Options/index/${variantProduct.value.id}`)).items || [] } catch (e) { error.value = e.message } finally { variantLoading.value = false } }
+function openGroup(group, parentId) {
+  groupForm.value = group
+    ? { id: group.id, product_id: variantProduct.value.id, name: group.name, group_level: group.group_level, parent_group_id: group.parent_group_id ?? '', is_required: !!group.is_required, sort_order: group.sort_order }
+    : { ...emptyGroup(), product_id: variantProduct.value.id, group_level: parentId ? 2 : 1, parent_group_id: parentId ?? '' }
+  groupModal.value = true
+}
+async function saveGroup() {
+  groupSaving.value = true
+  try {
+    const body = { ...groupForm.value, is_required: groupForm.value.is_required ? 1 : 0, product_id: variantProduct.value.id }
+    await api(groupForm.value.id ? `Options/save-group/${groupForm.value.id}` : 'Options/save-group', body)
+    groupModal.value = false; await loadVariants(); flash('Grup disimpan.')
+  } catch (e) { error.value = e.message } finally { groupSaving.value = false }
+}
+async function removeGroup(group) { if (!window.confirm(`Hapus grup "${group.name}" beserta nilainya?`)) return; try { await api(`Options/remove-group/${group.id}`, {}); await loadVariants(); flash('Grup dihapus.') } catch (e) { error.value = e.message } }
+function openValue(group, value) {
+  valueForm.value = value
+    ? { id: value.id, option_group_id: group.id, name: value.name, image_suffix: value.image_suffix || '', parent_value_id: value.parent_value_id ?? '', price_delta: value.price_delta, weight_delta_grams: value.weight_delta_grams, length_delta_mm: value.length_delta_mm, width_delta_mm: value.width_delta_mm, height_delta_mm: value.height_delta_mm, sort_order: value.sort_order, is_active: !!value.is_active }
+    : { ...emptyValue(), option_group_id: group.id }
+  valueModal.value = true
+}
+async function saveValue() {
+  valueSaving.value = true
+  try {
+    const body = { ...valueForm.value, is_active: valueForm.value.is_active ? 1 : 0 }
+    await api(valueForm.value.id ? `Options/save-value/${valueForm.value.id}` : 'Options/save-value', body)
+    valueModal.value = false; await loadVariants(); flash('Nilai disimpan.')
+  } catch (e) { error.value = e.message } finally { valueSaving.value = false }
+}
+async function removeValue(value) { if (!window.confirm(`Hapus nilai "${value.name}"?`)) return; try { await api(`Options/remove-value/${value.id}`, {}); await loadVariants(); flash('Nilai dihapus.') } catch (e) { error.value = e.message } }
 
 onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('orders') } catch {} })
 </script>
@@ -438,6 +488,10 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         </div>
         <small class="muted">{{ prodMedia.length }} media · JPG/PNG/WEBP · tanda ★ = cover</small>
       </div>
+      <div v-if="prodForm.id" class="field">
+        <span>Varian</span>
+        <button class="ghost--sm variant-open" type="button" @click="openVariants">Kelola varian (grup &amp; nilai)</button>
+      </div>
       <label class="field"><span>Deskripsi singkat</span><input v-model="prodForm.short_description"></label>
       <label class="field"><span>Deskripsi</span><textarea v-model="prodForm.description" rows="3"></textarea></label>
       <div class="field-row">
@@ -454,6 +508,131 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         <button class="ghost--sm" type="button" @click="closeProduct">Batal</button>
         <button class="primary" type="submit" :disabled="prodSaving">{{ prodSaving ? 'Menyimpan…' : 'Simpan' }}</button>
       </div>
+    </form>
+  </div>
+
+  <!-- Modal varian -->
+  <div v-if="variantModal" class="modal-overlay modal-overlay--top" role="dialog" aria-modal="true" aria-label="Kelola varian" @click.self="closeVariants">
+    <div class="modal-card modal-card--wide">
+      <div class="modal-head">
+        <h3>Varian — {{ variantProduct.name }}</h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="closeVariants">×</button>
+      </div>
+      <div class="variant-toolbar">
+        <button class="primary primary--sm" type="button" @click="openGroup(null, null)">+ Grup utama</button>
+      </div>
+      <div v-if="variantLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 3" :key="n" class="skeleton skeleton--row"></span></div>
+      <p v-else-if="!variants.length" class="muted">Belum ada varian. Tambahkan grup utama.</p>
+      <template v-else>
+        <div v-for="group in level1Groups" :key="group.id" class="variant-group">
+          <div class="variant-group__head">
+            <strong>{{ group.name }}</strong>
+            <span class="status" :class="group.is_required ? 'status--processing' : 'status--unpaid'">{{ group.is_required ? 'Wajib' : 'Opsional' }}</span>
+            <div class="row-actions">
+              <button class="link" type="button" @click="openGroup(group)">Edit</button>
+              <button class="link-danger" type="button" @click="removeGroup(group)">Hapus</button>
+            </div>
+          </div>
+          <table class="orders-table variant-table">
+            <thead><tr><th>Nilai</th><th>Harga +</th><th>Suffix</th><th>Aktif</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="v in group.values" :key="v.id">
+                <td data-label="Nilai">{{ v.name }}</td>
+                <td data-label="Harga +">{{ rupiah.format(v.price_delta) }}</td>
+                <td data-label="Suffix">{{ v.image_suffix || '—' }}</td>
+                <td data-label="Aktif">{{ v.is_active ? 'Ya' : 'Tidak' }}</td>
+                <td data-label="Aksi" class="row-actions"><button class="link" type="button" @click="openValue(group, v)">Edit</button><button class="link-danger" type="button" @click="removeValue(v)">Hapus</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="variant-actions">
+            <button class="ghost--sm" type="button" @click="openValue(group, null)">+ Nilai</button>
+            <button class="ghost--sm" type="button" @click="openGroup(null, group.id)">+ Sub-grup</button>
+          </div>
+
+          <div v-for="sub in subGroups(group)" :key="sub.id" class="variant-sub">
+            <div class="variant-group__head">
+              <strong>{{ sub.name }}</strong>
+              <span class="status status--unpaid">Turunan</span>
+              <div class="row-actions">
+                <button class="link" type="button" @click="openGroup(sub)">Edit</button>
+                <button class="link-danger" type="button" @click="removeGroup(sub)">Hapus</button>
+              </div>
+            </div>
+            <table class="orders-table variant-table">
+              <thead><tr><th>Nilai</th><th>Induk</th><th>Harga +</th><th>Suffix</th><th>Aktif</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="v in sub.values" :key="v.id">
+                  <td data-label="Nilai">{{ v.name }}</td>
+                  <td data-label="Induk">{{ valueName(v.parent_value_id) || '—' }}</td>
+                  <td data-label="Harga +">{{ rupiah.format(v.price_delta) }}</td>
+                  <td data-label="Suffix">{{ v.image_suffix || '—' }}</td>
+                  <td data-label="Aktif">{{ v.is_active ? 'Ya' : 'Tidak' }}</td>
+                  <td data-label="Aksi" class="row-actions"><button class="link" type="button" @click="openValue(sub, v)">Edit</button><button class="link-danger" type="button" @click="removeValue(v)">Hapus</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="variant-actions"><button class="ghost--sm" type="button" @click="openValue(sub, null)">+ Nilai</button></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Modal grup varian -->
+  <div v-if="groupModal" class="modal-overlay modal-overlay--top2" role="dialog" aria-modal="true" aria-label="Form grup varian" @click.self="groupModal = false">
+    <form class="modal-card" @submit.prevent="saveGroup">
+      <div class="modal-head"><h3>{{ groupForm.id ? 'Edit grup' : 'Tambah grup' }}</h3><button class="modal-x" type="button" aria-label="Tutup" @click="groupModal = false">×</button></div>
+      <label class="field"><span>Nama grup</span><input v-model="groupForm.name" required placeholder="Contoh: Ukuran"></label>
+      <div class="field-row">
+        <label class="field"><span>Level</span>
+          <select v-model.number="groupForm.group_level">
+            <option :value="1">Utama</option>
+            <option :value="2">Turunan</option>
+          </select>
+        </label>
+        <label class="field"><span>Grup induk</span>
+          <select v-model="groupForm.parent_group_id" :disabled="groupForm.group_level !== 2">
+            <option value="">—</option>
+            <option v-for="g in level1Groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Urutan</span><input v-model.number="groupForm.sort_order" type="number"></label>
+        <label class="check check--end"><input v-model="groupForm.is_required" type="checkbox"> Wajib dipilih</label>
+      </div>
+      <div class="modal-actions"><button class="ghost--sm" type="button" @click="groupModal = false">Batal</button><button class="primary" type="submit" :disabled="groupSaving">{{ groupSaving ? 'Menyimpan…' : 'Simpan' }}</button></div>
+    </form>
+  </div>
+
+  <!-- Modal nilai varian -->
+  <div v-if="valueModal" class="modal-overlay modal-overlay--top2" role="dialog" aria-modal="true" aria-label="Form nilai varian" @click.self="valueModal = false">
+    <form class="modal-card" @submit.prevent="saveValue">
+      <div class="modal-head"><h3>{{ valueForm.id ? 'Edit nilai' : 'Tambah nilai' }}</h3><button class="modal-x" type="button" aria-label="Tutup" @click="valueModal = false">×</button></div>
+      <label class="field"><span>Nama nilai</span><input v-model="valueForm.name" required placeholder="Contoh: 10x15cm"></label>
+      <div class="field-row">
+        <label class="field"><span>Harga tambahan (Rp)</span><input v-model.number="valueForm.price_delta" type="number"></label>
+        <label class="field"><span>Image suffix</span><input v-model="valueForm.image_suffix" placeholder="mis: full_logo"></label>
+      </div>
+      <div class="field-row field-row--3">
+        <label class="field"><span>Berat (g)</span><input v-model.number="valueForm.weight_delta_grams" type="number"></label>
+        <label class="field"><span>Panjang (mm)</span><input v-model.number="valueForm.length_delta_mm" type="number"></label>
+        <label class="field"><span>Lebar (mm)</span><input v-model.number="valueForm.width_delta_mm" type="number"></label>
+      </div>
+      <label class="field"><span>Nilai induk (untuk grup turunan)</span>
+        <select v-model="valueForm.parent_value_id">
+          <option value="">—</option>
+          <template v-for="g in level1Groups" :key="g.id">
+            <option v-for="v in g.values" :key="v.id" :value="v.id">{{ g.name }}: {{ v.name }}</option>
+          </template>
+        </select>
+      </label>
+      <div class="field-row">
+        <label class="field"><span>Urutan</span><input v-model.number="valueForm.sort_order" type="number"></label>
+        <label class="check check--end"><input v-model="valueForm.is_active" type="checkbox"> Aktif</label>
+      </div>
+      <div class="modal-actions"><button class="ghost--sm" type="button" @click="valueModal = false">Batal</button><button class="primary" type="submit" :disabled="valueSaving">{{ valueSaving ? 'Menyimpan…' : 'Simpan' }}</button></div>
     </form>
   </div>
 </template>
