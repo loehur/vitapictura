@@ -38,15 +38,17 @@ const gallery = computed(() => {
 })
 const heroImage = computed(() => activeImage.value || gallery.value[0]?.url || null)
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+function apiUrl(path) { return API_BASE ? `${API_BASE}${path}` : `/api${path}` }
 async function request(path) {
-  const url = path.startsWith('/') ? `/api${path}` : `/api/Store/Catalog/${path}`
+  const url = apiUrl(path.startsWith('/') ? path : `/Store/Catalog/${path}`)
   const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } })
   const payload = await response.json()
   if (!response.ok || !payload.status) throw new Error(payload.message || 'Tidak dapat memuat katalog.')
   return payload.data
 }
 async function post(path, body) {
-  const response = await fetch(`/api${path}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body || {}) })
+  const response = await fetch(apiUrl(path), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body || {}) })
   const payload = await response.json()
   if (!response.ok || !payload.status) throw new Error(payload.message || 'Terjadi kesalahan.')
   return payload.data
@@ -63,8 +65,8 @@ async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/s
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }
 function chooseOption(group, value) { const inGroup = selectedOptions.value.filter((id) => group.values.some((item) => item.id === id)); if (inGroup.includes(value.id) && Number(group.is_required) !== 1) { selectedOptions.value = selectedOptions.value.filter((id) => id !== value.id) } else { selectedOptions.value = [...selectedOptions.value.filter(id => !group.values.some(item => item.id === id)), value.id] } quote.value = null }
-async function getQuote() { try { const r=await fetch('/api/Customer/Configurator/quote',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);quote.value=p.data } catch(e){error.value=e.message} }
-async function uploadDesign(event) { const file=event.target.files?.[0];if(!file)return;if(!customer.value){startGoogleLogin();return}try{const form=new FormData();form.append('file',file);form.append('product_id',product.value.id);const r=await fetch('/api/Customer/Configurator/upload',{method:'POST',credentials:'include',body:form});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);uploadedFile.value=p.data;flash('Desain diunggah.')}catch(e){error.value=e.message} }
+async function getQuote() { try { const r=await fetch(apiUrl('/Customer/Configurator/quote'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);quote.value=p.data } catch(e){error.value=e.message} }
+async function uploadDesign(event) { const file=event.target.files?.[0];if(!file)return;if(!customer.value){startGoogleLogin();return}try{const form=new FormData();form.append('file',file);form.append('product_id',product.value.id);const r=await fetch(apiUrl('/Customer/Configurator/upload'),{method:'POST',credentials:'include',body:form});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);uploadedFile.value=p.data;flash('Desain diunggah.')}catch(e){error.value=e.message} }
 async function loadCart() { cart.value = await request('/Customer/Cart/index') }
 async function openCart() { if(!customer.value){startGoogleLogin();return}try{await loadCart();cartOpen.value=true}catch(e){error.value=e.message} }
 async function updateCartQty(item, quantity) { try { await post(`/Customer/Cart/update/${item.id}`, { quantity }); await loadCart() } catch(e){ error.value=e.message } }
