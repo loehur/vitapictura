@@ -1154,4 +1154,49 @@
   .catalog {
     scroll-margin-top: 5.5rem;
   }
+
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 1.25rem;
+    background: rgba(29, 15, 56, 0.55);
+  }
+  .login-card {
+    position: relative;
+    width: 100%;
+    max-width: 22rem;
+    padding: 1.6rem 1.4rem;
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-pop);
+    text-align: center;
+  }
+  .login-card h2 {
+    margin: 0.2rem 0 0.4rem;
+    font-size: 1.35rem;
+  }
+  .login-close {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.7rem;
+    border: 0;
+    background: transparent;
+    font-size: 1.3rem;
+    line-height: 1;
+    color: var(--color-muted);
+  }
+  .google-slot {
+    display: flex;
+    justify-content: center;
+    min-height: 2.75rem;
+    margin: 1rem 0 0;
+  }
+  .login-card .muted {
+    margin: 0.6rem 0 0;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+  }
 }

@@ -23,6 +23,12 @@ const orders = ref([])
 const notice = ref('')
 const addingToCart = ref(false)
 const signingIn = ref(false)
+const loginOpen = ref(false)
+const googleReady = ref(false)
+const googleLoading = ref(false)
+const googleError = ref('')
+const googleBtn = ref(null)
+let googleButtonRendered = false
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan populer')
@@ -56,9 +62,36 @@ async function post(path, body) {
 let flashTimer
 function flash(message) { notice.value = message; window.clearTimeout(flashTimer); flashTimer = window.setTimeout(() => { notice.value = '' }, 3500) }
 async function loadHome() { try { loading.value = true; catalog.value = await request('home'); allProducts.value = (await request('products?limit=48')).items } catch (e) { error.value = e.message } finally { loading.value = false } }
-async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId } catch {} }
-async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
-function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} window.google?.accounts.id.initialize({client_id:googleClientId.value,callback:googleLogin});window.google?.accounts.id.prompt() }
+function waitForGoogle(timeout = 8000) {
+  return new Promise((resolve) => {
+    const started = Date.now()
+    const poll = () => {
+      if (window.google?.accounts?.id) return resolve(true)
+      if (Date.now() - started > timeout) return resolve(false)
+      window.setTimeout(poll, 150)
+    }
+    poll()
+  })
+}
+async function setupGoogle() {
+  if (!googleClientId.value) return
+  if (!googleReady.value) {
+    googleLoading.value = true
+    googleError.value = ''
+    const ready = await waitForGoogle()
+    googleLoading.value = false
+    if (!ready) { googleError.value = 'Skrip Google gagal dimuat. Matikan adblock lalu muat ulang halaman.'; return }
+    window.google.accounts.id.initialize({ client_id: googleClientId.value, callback: googleLogin })
+    googleReady.value = true
+  }
+  if (!googleButtonRendered && googleBtn.value) {
+    window.google.accounts.id.renderButton(googleBtn.value, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'id', width: 280 })
+    googleButtonRendered = true
+  }
+}
+async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; await setupGoogle() } catch(e){ googleError.value = e.message } }
+async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); loginOpen.value = false; await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
+async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; await setupGoogle() }
 async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;addressBook.value=true } catch(e){error.value=e.message} }
 async function saveAddress() { try { await post('/Customer/Addresses/save', addressForm.value); addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false}; await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
@@ -335,6 +368,17 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </div>
       </section>
     </template>
+    </div>
+    <div v-show="loginOpen" class="login-overlay" role="dialog" aria-modal="true" aria-label="Masuk dengan Google" @click.self="loginOpen = false">
+      <div class="login-card">
+        <button class="login-close" type="button" aria-label="Tutup" @click="loginOpen = false">×</button>
+        <p class="category">Akun</p>
+        <h2>Masuk ke Vita Pictura</h2>
+        <p class="description">Pilih akun Google untuk melanjutkan.</p>
+        <div ref="googleBtn" class="google-slot" :aria-busy="googleLoading"></div>
+        <p v-if="googleLoading" class="muted">Memuat tombol Google…</p>
+        <p v-if="googleError" class="error">{{ googleError }}</p>
+      </div>
     </div>
     <nav v-if="!product" class="bottom-nav" aria-label="Navigasi bawah">
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" :aria-current="(!product && !cartOpen && !ordersOpen && !addressBook) ? 'page' : null" @click="goHome">
