@@ -11,6 +11,7 @@ const error = ref('')
 const customer = ref(null)
 const googleClientId = ref('')
 const addressBook = ref(false)
+const addressModalOpen = ref(false)
 const addresses = ref([])
 const addressForm = ref({ label: '', recipient_name: '', recipient_phone: '', address_line: '', notes: '', province_id: '', province_name: '', regency_id: '', regency_name: '', district_id: '', district_name: '', village_id: '', village_name: '', postal_code: '', area_id: '', area_name: '', latitude: null, longitude: null, is_default: false })
 const googleMapsKey = ref('')
@@ -279,7 +280,9 @@ async function resolveArea() {
 }
 function addressHierarchy(item) { return [item.villageName, item.districtName, item.regencyName, item.provinceName, item.postalCode].filter(Boolean).join(', ') }
 async function openAddresses() { return navigate('account') }
-async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) markerInstance.setPosition(null); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
+function openAddressModal() { addressModalOpen.value = true; nextTick(() => startMap()) }
+function closeAddressModal() { addressModalOpen.value = false }
+async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) markerInstance.setPosition(null); closeAddressModal(); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }
@@ -334,7 +337,7 @@ async function addCart() {
 }
 async function openOrders() { return navigate('orders') }
 async function openProduct(slug) { return navigate('product', slug) }
-function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false }
+function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false }
 const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun' }
 function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : (ROUTE_PATHS[name] || '/') }
 function parseRoute(path) {
@@ -490,6 +493,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </button>
       <p class="category">Akun</p>
       <h1>Alamat tersimpan</h1>
+      <button class="cta" type="button" @click="openAddressModal">+ Tambah lokasi</button>
 
       <p v-if="!addresses.length" class="description">Belum ada alamat tersimpan.</p>
       <article v-for="item in addresses" :key="item.id" class="address">
@@ -506,6 +510,9 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </div>
       </article>
 
+      <div v-show="addressModalOpen" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Tambah lokasi" @click.self="closeAddressModal">
+      <div class="modal-card">
+      <button class="modal-close" type="button" aria-label="Tutup" @click="closeAddressModal">×</button>
       <form class="address-form" @submit.prevent="saveAddress">
         <h2>Tambah lokasi</h2>
         <label class="field"><span>Label</span><input v-model="addressForm.label" required placeholder="Contoh: Rumah"></label>
@@ -548,6 +555,8 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <p v-if="areaStatus" class="muted">{{ areaStatus }}</p>
         <button class="cta" type="submit">Simpan alamat</button>
       </form>
+      </div>
+      </div>
     </template>
     <template v-else-if="product">
       <button class="back" type="button" @click="goHome()">
