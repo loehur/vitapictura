@@ -9,6 +9,8 @@ const navOpen = ref(false)
 const busy = ref(false)
 const view = ref('orders')
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
+const STOREFRONT = 'https://vpictura.com'
+function mediaUrl(url) { if (!url) return ''; return /^https?:/i.test(url) ? url : `${STOREFRONT}${url}` }
 const navItems = [
   { key: 'orders', label: 'Pesanan' },
   { key: 'categories', label: 'Kategori' },
@@ -119,11 +121,13 @@ const filteredProducts = computed(() => {
 })
 function mapProduct(p) { return { id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? '', short_description: p.short_description || '', description: p.description || '', base_price: Number(p.base_price) || 0, weight_grams: Number(p.weight_grams) || 0, length_mm: p.length_mm ?? '', width_mm: p.width_mm ?? '', height_mm: p.height_mm ?? '', cover_image_url: p.cover_image_url || '', is_featured: !!p.is_featured, popularity: Number(p.popularity) || 0, status: p.status } }
 async function openProduct(row) {
-  if (row && row.id) { try { prodForm.value = mapProduct(await api(`Products/show/${row.id}`)) } catch (e) { error.value = e.message; return } }
-  else prodForm.value = emptyProduct()
+  if (row && row.id) {
+    try { prodForm.value = mapProduct(await api(`Products/show/${row.id}`)) } catch (e) { error.value = e.message; return }
+    await loadMedia(prodForm.value.id)
+  } else { prodForm.value = emptyProduct(); prodMedia.value = [] }
   prodModal.value = true
 }
-function closeProduct() { prodModal.value = false }
+function closeProduct() { prodModal.value = false; prodMedia.value = [] }
 function onProductName() { if (!prodForm.value.id) prodForm.value.slug = slugify(prodForm.value.name) }
 async function saveProduct() {
   prodSaving.value = true
@@ -141,6 +145,28 @@ async function removeProduct(row) {
   try { await api(`Products/remove/${row.id}`, {}); await loadProducts(); flash('Produk dihapus.') }
   catch (e) { error.value = e.message }
 }
+
+// ---- Product media ----
+const prodMedia = ref([])
+const mediaUploading = ref(false)
+async function loadMedia(pid) { try { prodMedia.value = (await api(`Products/media/${pid}`)).items || [] } catch (e) { prodMedia.value = [] } }
+async function uploadMedia(event) {
+  const file = event.target.files?.[0]
+  if (!file || !prodForm.value.id) return
+  mediaUploading.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const r = await fetch(`/api/Admin/Products/upload-media/${prodForm.value.id}`, { method: 'POST', credentials: 'include', body: fd })
+    const p = await r.json()
+    if (!r.ok || !p.status) throw new Error(p.message)
+    await loadMedia(prodForm.value.id)
+    flash('Media diunggah.')
+  } catch (e) { error.value = e.message } finally { mediaUploading.value = false; event.target.value = '' }
+}
+async function removeMedia(item) { if (!window.confirm('Hapus media ini?')) return; try { await api(`Products/remove-media/${item.id}`, {}); await loadMedia(prodForm.value.id); flash('Media dihapus.') } catch (e) { error.value = e.message } }
+async function moveMedia(item, dir) { const list = [...prodMedia.value]; const i = list.findIndex((m) => m.id === item.id); const j = i + dir; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; prodMedia.value = list; try { await api(`Products/reorder-media/${prodForm.value.id}`, { order: list.map((m) => m.id) }) } catch (e) { error.value = e.message } }
+async function setCover(item) { try { const d = await api(`Products/set-cover/${prodForm.value.id}`, { media_id: item.id }); prodForm.value.cover_image_url = d.coverImage; flash('Cover diperbarui.') } catch (e) { error.value = e.message } }
 
 onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('orders') } catch {} })
 </script>
@@ -317,7 +343,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                 <tr v-for="p in filteredProducts" :key="p.id">
                   <td data-label="Produk">
                     <div class="prod-cell">
-                      <span class="prod-thumb"><img v-if="p.cover_image_url" :src="p.cover_image_url" :alt="p.name"></span>
+                      <span class="prod-thumb"><img v-if="p.cover_image_url" :src="mediaUrl(p.cover_image_url)" :alt="p.name"></span>
                       <div><strong>{{ p.name }}</strong><small>{{ p.slug }}</small></div>
                     </div>
                   </td>
@@ -393,6 +419,25 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         <label class="field"><span>Tinggi (mm)</span><input v-model="prodForm.height_mm" type="number" min="0"></label>
       </div>
       <label class="field"><span>Cover image URL</span><input v-model="prodForm.cover_image_url" placeholder="/uploads/... atau https://..."></label>
+      <div v-if="prodForm.id" class="field">
+        <span>Galeri media</span>
+        <div class="media-grid">
+          <div v-for="m in prodMedia" :key="m.id" class="media-item" :class="{ 'is-cover': m.url === prodForm.cover_image_url }">
+            <img :src="mediaUrl(m.url)" alt="">
+            <div class="media-tools">
+              <button type="button" class="media-btn" :disabled="m.url === prodForm.cover_image_url" title="Jadikan cover" @click="setCover(m)">★</button>
+              <button type="button" class="media-btn" title="Naik" @click="moveMedia(m, -1)">↑</button>
+              <button type="button" class="media-btn" title="Turun" @click="moveMedia(m, 1)">↓</button>
+              <button type="button" class="media-btn media-btn--danger" title="Hapus" @click="removeMedia(m)">×</button>
+            </div>
+          </div>
+          <label class="media-add" title="Unggah media">
+            <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="mediaUploading" @change="uploadMedia">
+            <span>{{ mediaUploading ? '…' : '+' }}</span>
+          </label>
+        </div>
+        <small class="muted">{{ prodMedia.length }} media · JPG/PNG/WEBP · tanda ★ = cover</small>
+      </div>
       <label class="field"><span>Deskripsi singkat</span><input v-model="prodForm.short_description"></label>
       <label class="field"><span>Deskripsi</span><textarea v-model="prodForm.description" rows="3"></textarea></label>
       <div class="field-row">
