@@ -11,5 +11,6 @@ Apply against a fresh Vita Pictura database, in this exact order:
 009_address_wilayah.sql
 010_settings.sql
 011_delivery_biteship.sql
+012_orders_admin_note.sql
 
 Run the demo seed files only in local development. Never run them in staging or production.

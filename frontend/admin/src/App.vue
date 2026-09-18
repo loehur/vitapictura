@@ -84,6 +84,11 @@ async function markPaid() {
   try { await api(`Orders/mark-paid/${orderDetail.value.id}`, {}); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan ditandai lunas.') }
   catch (e) { error.value = e.message } finally { savingOrder.value = false }
 }
+const orderTabs = [ { key: '', label: 'Semua' }, { key: 'pending_payment', label: 'Menunggu' }, { key: 'processing', label: 'Diproses' }, { key: 'shipped', label: 'Dikirim' }, { key: 'completed', label: 'Selesai' }, { key: 'cancelled', label: 'Batal' }, { key: 'expired', label: 'Kedaluwarsa' } ]
+function orderCount(status) { return status ? orders.value.filter((o) => o.status === status).length : orders.value.length }
+async function bookOrder() { if (!orderDetail.value) return; if (!window.confirm('Buat order pengiriman ke Biteship?')) return; savingOrder.value = true; try { await api(`Orders/book/${orderDetail.value.id}`, {}); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan dikirim (Biteship).') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
+async function completeOrder() { if (!orderDetail.value) return; if (!window.confirm('Tandai pesanan selesai?')) return; savingOrder.value = true; try { await api(`Orders/mark-completed/${orderDetail.value.id}`, {}); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan selesai.') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
+async function cancelOrder() { if (!orderDetail.value) return; const note = window.prompt('Alasan pembatalan:'); if (note === null) return; savingOrder.value = true; try { await api(`Orders/cancel/${orderDetail.value.id}`, { note }); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan dibatalkan.') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
 function formatDateTime(value) { if (!value) return '—'; const d = new Date(String(value).replace(' ', 'T')); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
 const filteredOrders = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -407,16 +412,13 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           <article class="stat"><span>Selesai</span><strong>{{ countBy('completed') }}</strong></article>
         </section>
 
+        <div class="tabs">
+          <button v-for="t in orderTabs" :key="t.key" type="button" class="tab" :class="{ 'is-active': statusFilter === t.key }" @click="statusFilter = t.key">{{ t.label }}<span v-if="orderCount(t.key)" class="tab__count">{{ orderCount(t.key) }}</span></button>
+        </div>
+
         <section class="panel" :aria-busy="loading">
           <div class="panel__head">
             <input v-model="search" class="search" type="search" placeholder="Cari nomor pesanan atau nama…">
-            <select v-model="statusFilter">
-              <option value="">Semua status</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
           </div>
 
           <div v-if="loading" class="skeleton-list" aria-hidden="true">
@@ -884,6 +886,10 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </div>
         <div class="detail-actions-line">
           <button v-if="orderDetail.payment?.status !== 'paid'" class="ghost--sm" type="button" :disabled="savingOrder" @click="markPaid">Tandai lunas</button>
+          <button v-if="orderDetail.courier_company && orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled'" class="ghost--sm" type="button" :disabled="savingOrder" @click="bookOrder">Booking Biteship</button>
+          <button v-if="orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled'" class="ghost--sm" type="button" :disabled="savingOrder" @click="completeOrder">Tandai selesai</button>
+          <button v-if="orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled'" class="link-danger" type="button" :disabled="savingOrder" @click="cancelOrder">Batalkan</button>
+          <span v-if="orderDetail.admin_note" class="detail-note">Catatan: {{ orderDetail.admin_note }}</span>
         </div>
 
         <h4 class="detail-sub">Pengiriman</h4>
