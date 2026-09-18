@@ -20,6 +20,9 @@ const cart = ref({ items: [], total: 0 })
 const cartOpen = ref(false)
 const ordersOpen = ref(false)
 const orders = ref([])
+const notice = ref('')
+const addingToCart = ref(false)
+const signingIn = ref(false)
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan populer')
@@ -42,17 +45,31 @@ async function request(path) {
   if (!response.ok || !payload.status) throw new Error(payload.message || 'Tidak dapat memuat katalog.')
   return payload.data
 }
+async function post(path, body) {
+  const response = await fetch(`/api${path}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body || {}) })
+  const payload = await response.json()
+  if (!response.ok || !payload.status) throw new Error(payload.message || 'Terjadi kesalahan.')
+  return payload.data
+}
+let flashTimer
+function flash(message) { notice.value = message; window.clearTimeout(flashTimer); flashTimer = window.setTimeout(() => { notice.value = '' }, 3500) }
 async function loadHome() { try { loading.value = true; catalog.value = await request('home'); allProducts.value = (await request('products?limit=48')).items } catch (e) { error.value = e.message } finally { loading.value = false } }
 async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId } catch {} }
-async function googleLogin(response) { try { const r=await fetch('/api/Customer/Auth/google',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({credential:response.credential})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);customer.value=p.data;await refreshCart() } catch(e){error.value=e.message} }
+async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
 function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} window.google?.accounts.id.initialize({client_id:googleClientId.value,callback:googleLogin});window.google?.accounts.id.prompt() }
 async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;addressBook.value=true } catch(e){error.value=e.message} }
-async function saveAddress() { try { const r=await fetch('/api/Customer/Addresses/save',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(addressForm.value)});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false};await openAddresses() } catch(e){error.value=e.message} }
+async function saveAddress() { try { await post('/Customer/Addresses/save', addressForm.value); addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false}; await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
+async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
+async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
+function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }
 function chooseOption(group, value) { const inGroup = selectedOptions.value.filter((id) => group.values.some((item) => item.id === id)); if (inGroup.includes(value.id) && Number(group.is_required) !== 1) { selectedOptions.value = selectedOptions.value.filter((id) => id !== value.id) } else { selectedOptions.value = [...selectedOptions.value.filter(id => !group.values.some(item => item.id === id)), value.id] } quote.value = null }
 async function getQuote() { try { const r=await fetch('/api/Customer/Configurator/quote',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);quote.value=p.data } catch(e){error.value=e.message} }
-async function uploadDesign(event) { const file=event.target.files?.[0];if(!file)return;if(!customer.value){startGoogleLogin();return}try{const form=new FormData();form.append('file',file);form.append('product_id',product.value.id);const r=await fetch('/api/Customer/Configurator/upload',{method:'POST',credentials:'include',body:form});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);uploadedFile.value=p.data}catch(e){error.value=e.message} }
-async function openCart() { if(!customer.value){startGoogleLogin();return}try{cart.value=await request('/Customer/Cart/index');cartOpen.value=true}catch(e){error.value=e.message} }
-async function addCart() { if(!customer.value){startGoogleLogin();return}try{const r=await fetch('/api/Customer/Cart/add',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1,upload_ids:uploadedFile.value?[uploadedFile.value.id]:[]})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);await openCart()}catch(e){error.value=e.message} }
+async function uploadDesign(event) { const file=event.target.files?.[0];if(!file)return;if(!customer.value){startGoogleLogin();return}try{const form=new FormData();form.append('file',file);form.append('product_id',product.value.id);const r=await fetch('/api/Customer/Configurator/upload',{method:'POST',credentials:'include',body:form});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);uploadedFile.value=p.data;flash('Desain diunggah.')}catch(e){error.value=e.message} }
+async function loadCart() { cart.value = await request('/Customer/Cart/index') }
+async function openCart() { if(!customer.value){startGoogleLogin();return}try{await loadCart();cartOpen.value=true}catch(e){error.value=e.message} }
+async function updateCartQty(item, quantity) { try { await post(`/Customer/Cart/update/${item.id}`, { quantity }); await loadCart() } catch(e){ error.value=e.message } }
+async function removeCartItem(item) { try { await post(`/Customer/Cart/remove/${item.id}`); await loadCart(); flash('Item dihapus dari keranjang.') } catch(e){ error.value=e.message } }
+async function addCart() { if(!customer.value){startGoogleLogin();return} addingToCart.value=true; try { await post('/Customer/Cart/add', { product_id: product.value.id, option_value_ids: selectedOptions.value, quantity: 1, upload_ids: uploadedFile.value ? [uploadedFile.value.id] : [] }); await loadCart(); flash('Produk ditambahkan ke keranjang.') } catch(e){ error.value=e.message } finally { addingToCart.value=false } }
 async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;ordersOpen.value=true}catch(e){error.value=e.message} }
 async function openProduct(slug) { try { product.value = await request(`show/${slug}`); selectedOptions.value=[];quote.value=null;uploadedFile.value=null;activeImage.value=null; window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { error.value = e.message } }
 function goHome() { product.value = null; cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; window.scrollTo({ top: 0, behavior: 'smooth' }) }
@@ -64,6 +81,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
 
 <template>
   <main class="app-shell">
+    <a class="skip-link" href="#main">Lewati ke konten</a>
     <header class="site-header">
       <button class="brand" type="button" @click="goHome">
         <span class="brand-mark" aria-hidden="true">VP</span>
@@ -84,14 +102,116 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <span v-if="cartCount" class="badge">{{ cartCount }}</span>
       </button>
     </header>
-    <template v-if="ordersOpen"><button class="back" @click="ordersOpen=false">← Kembali</button><p class="category">Akun</p><h1>Pesananmu</h1><p v-if="!orders.length" class="description">Belum ada pesanan.</p><article v-for="order in orders" :key="order.id" class="address"><strong>{{ order.order_number }}</strong><span>{{ order.status }} · {{ order.payment_status || 'belum dibayar' }}</span><strong>{{ rupiah.format(order.total) }}</strong><span v-if="order.tracking_number">Resi: {{ order.tracking_number }}</span></article></template>
+    <div class="alerts" aria-live="polite">
+      <div v-if="error" class="alert alert--error" role="alert">
+        <span>{{ error }}</span>
+        <button type="button" aria-label="Tutup peringatan" @click="error = ''">×</button>
+      </div>
+      <div v-if="notice" class="alert alert--success" role="status">
+        <span>{{ notice }}</span>
+        <button type="button" aria-label="Tutup notifikasi" @click="notice = ''">×</button>
+      </div>
+    </div>
+    <div id="main" tabindex="-1">
+    <template v-if="ordersOpen">
+      <button class="back" type="button" @click="ordersOpen = false">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        Kembali
+      </button>
+      <p class="category">Akun</p>
+      <h1>Pesananmu</h1>
+
+      <div v-if="!orders.length" class="state">
+        <p class="description">Belum ada pesanan.</p>
+        <button class="cta" type="button" @click="goHome">Mulai belanja</button>
+      </div>
+
+      <div v-else class="orders">
+        <article v-for="order in orders" :key="order.id" class="order-card">
+          <div class="order-card__head">
+            <strong>{{ order.order_number }}</strong>
+            <span class="status" :class="`status--${order.status}`">{{ order.status }}</span>
+          </div>
+          <span class="order-card__meta">{{ formatDate(order.created_at) }}</span>
+          <div class="order-card__row">
+            <span class="status" :class="`status--${order.payment_status || 'unpaid'}`">{{ order.payment_status || 'belum dibayar' }}</span>
+            <strong>{{ rupiah.format(order.total) }}</strong>
+          </div>
+          <span v-if="order.tracking_number" class="order-card__meta">Resi: {{ order.tracking_number }}</span>
+        </article>
+      </div>
+    </template>
     <template v-else-if="cartOpen">
-      <button class="back" @click="cartOpen=false">← Kembali</button><p class="category">Keranjang</p><h1>Siap dicetak</h1><p v-if="!cart.items.length" class="description">Keranjangmu masih kosong.</p><article v-for="item in cart.items" :key="item.id" class="address"><strong>{{ item.name }}</strong><span v-for="choice in item.selections" :key="choice.valueId">{{ choice.group }}: {{ choice.value }}</span><strong>{{ rupiah.format(item.totalPrice) }}</strong></article><p v-if="cart.items.length" class="price">Total {{ rupiah.format(cart.total) }}</p>
+      <button class="back" type="button" @click="cartOpen = false">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        Kembali
+      </button>
+      <p class="category">Keranjang</p>
+      <h1>Siap dicetak</h1>
+
+      <div v-if="!cart.items.length" class="state">
+        <p class="description">Keranjangmu masih kosong.</p>
+        <button class="cta" type="button" @click="goHome">Mulai belanja</button>
+      </div>
+
+      <div v-else class="cart">
+        <article v-for="item in cart.items" :key="item.id" class="cart-item">
+          <div class="cart-item__media">
+            <img v-if="item.image" :src="item.image" :alt="item.name">
+            <span v-else>{{ item.name.charAt(0) }}</span>
+          </div>
+          <div class="cart-item__body">
+            <strong>{{ item.name }}</strong>
+            <span v-for="choice in item.selections" :key="choice.valueId" class="cart-item__choice">{{ choice.group }}: {{ choice.value }}</span>
+            <div class="cart-item__row">
+              <div class="qty">
+                <button type="button" aria-label="Kurangi jumlah" @click="updateCartQty(item, Math.max(1, item.quantity - 1))">−</button>
+                <span>{{ item.quantity }}</span>
+                <button type="button" aria-label="Tambah jumlah" @click="updateCartQty(item, item.quantity + 1)">+</button>
+              </div>
+              <strong>{{ rupiah.format(item.totalPrice) }}</strong>
+            </div>
+            <button class="link-danger" type="button" @click="removeCartItem(item)">Hapus</button>
+          </div>
+        </article>
+
+        <div class="cart-total">
+          <span>Total</span>
+          <strong>{{ rupiah.format(cart.total) }}</strong>
+        </div>
+      </div>
     </template>
     <template v-else-if="addressBook">
-      <button class="back" @click="addressBook = false">← Kembali</button><p class="category">Akun</p><h1>Alamat tersimpan</h1>
-      <article v-for="item in addresses" :key="item.id" class="address"><strong>{{ item.label }} <small v-if="item.isDefault">Utama</small></strong><span>{{ item.recipientName }} · {{ item.recipientPhone }}</span><span>{{ item.addressLine }}</span></article>
-      <form class="address-form" @submit.prevent="saveAddress"><h2>Tambah lokasi</h2><input v-model="addressForm.label" required placeholder="Label, contoh: Rumah"><input v-model="addressForm.recipient_name" required placeholder="Nama penerima"><input v-model="addressForm.recipient_phone" required placeholder="Nomor WhatsApp"><textarea v-model="addressForm.address_line" required placeholder="Alamat lengkap"></textarea><label><input v-model="addressForm.is_default" type="checkbox"> Jadikan alamat utama</label><button class="cta">Simpan alamat</button></form>
+      <button class="back" type="button" @click="addressBook = false">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        Kembali
+      </button>
+      <p class="category">Akun</p>
+      <h1>Alamat tersimpan</h1>
+
+      <p v-if="!addresses.length" class="description">Belum ada alamat tersimpan.</p>
+      <article v-for="item in addresses" :key="item.id" class="address">
+        <div class="address__head">
+          <strong>{{ item.label }}</strong>
+          <small v-if="item.isDefault">Utama</small>
+        </div>
+        <span>{{ item.recipientName }} · {{ item.recipientPhone }}</span>
+        <span>{{ item.addressLine }}</span>
+        <div class="address__actions">
+          <button v-if="!item.isDefault" class="link" type="button" @click="setDefaultAddress(item)">Jadikan utama</button>
+          <button class="link-danger" type="button" @click="removeAddress(item)">Hapus</button>
+        </div>
+      </article>
+
+      <form class="address-form" @submit.prevent="saveAddress">
+        <h2>Tambah lokasi</h2>
+        <label class="field"><span>Label</span><input v-model="addressForm.label" required placeholder="Contoh: Rumah"></label>
+        <label class="field"><span>Nama penerima</span><input v-model="addressForm.recipient_name" required placeholder="Nama lengkap"></label>
+        <label class="field"><span>Nomor WhatsApp</span><input v-model="addressForm.recipient_phone" required placeholder="08xxxxxxxxxx"></label>
+        <label class="field"><span>Alamat lengkap</span><textarea v-model="addressForm.address_line" required placeholder="Jalan, nomor, kelurahan, kota, kode pos"></textarea></label>
+        <label class="check"><input v-model="addressForm.is_default" type="checkbox"> Jadikan alamat utama</label>
+        <button class="cta" type="submit">Simpan alamat</button>
+      </form>
     </template>
     <template v-else-if="product">
       <button class="back" type="button" @click="product = null">
@@ -145,7 +265,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             <button class="ghost ghost--sm" type="button" @click="getQuote">Hitung harga</button>
           </div>
 
-          <button class="cta product-add" type="button" @click="addCart">Tambah ke keranjang</button>
+          <button class="cta product-add" type="button" :disabled="addingToCart" @click="addCart">{{ addingToCart ? 'Menambahkan…' : 'Tambah ke keranjang' }}</button>
         </div>
       </div>
 
@@ -154,7 +274,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <span class="product-summary__label">{{ quote ? 'Total estimasi' : 'Mulai dari' }}</span>
           <strong>{{ rupiah.format(quote ? quote.totalPrice : product.price) }}</strong>
         </div>
-        <button class="cta" type="button" @click="addCart">Tambah</button>
+        <button class="cta" type="button" :disabled="addingToCart" @click="addCart">{{ addingToCart ? '…' : 'Tambah' }}</button>
       </div>
     </template>
     <template v-else>
@@ -213,23 +333,24 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </div>
       </section>
     </template>
+    </div>
     <nav v-if="!product" class="bottom-nav" aria-label="Navigasi bawah">
-      <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" @click="goHome">
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" :aria-current="(!product && !cartOpen && !ordersOpen && !addressBook) ? 'page' : null" @click="goHome">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg>
         <span>Beranda</span>
       </button>
-      <button class="bottom-nav__item" type="button" :class="{ 'is-active': cartOpen }" @click="openCart">
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': cartOpen }" :aria-current="cartOpen ? 'page' : null" @click="openCart">
         <span class="nav-icon-wrap">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
           <span v-if="cartCount" class="badge">{{ cartCount }}</span>
         </span>
         <span>Keranjang</span>
       </button>
-      <button class="bottom-nav__item" type="button" :class="{ 'is-active': ordersOpen }" @click="openOrders">
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': ordersOpen }" :aria-current="ordersOpen ? 'page' : null" @click="openOrders">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
         <span>Pesanan</span>
       </button>
-      <button class="bottom-nav__item" type="button" :class="{ 'is-active': addressBook }" @click="customer ? openAddresses() : startGoogleLogin">
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': addressBook }" :aria-current="addressBook ? 'page' : null" @click="customer ? openAddresses() : startGoogleLogin">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
         <span>Akun</span>
       </button>
