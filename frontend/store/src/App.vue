@@ -450,7 +450,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         Kembali
       </button>
       <p class="category">Keranjang</p>
-      <h1>Siap dicetak</h1>
 
       <div v-if="!cart.items.length" class="state">
         <p class="description">Keranjangmu masih kosong.</p>
