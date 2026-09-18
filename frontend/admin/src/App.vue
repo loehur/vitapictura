@@ -15,8 +15,9 @@ const navItems = [
   { key: 'orders', label: 'Pesanan' },
   { key: 'categories', label: 'Kategori' },
   { key: 'products', label: 'Produk' },
+  { key: 'customers', label: 'Pelanggan' },
 ]
-const titles = { orders: 'Pesanan', categories: 'Kategori', products: 'Produk' }
+const titles = { orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
 
 async function api(path, body) {
@@ -37,7 +38,7 @@ async function login() {
 }
 async function logout() { try { await api('Auth/logout', {}) } catch {} user.value = null; navOpen.value = false }
 function switchView(key) { view.value = key; navOpen.value = false; loadView(key) }
-function loadView(key) { if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts() }
+function loadView(key) { if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers() }
 
 // ---- Orders ----
 const orders = ref([])
@@ -244,6 +245,27 @@ async function saveValue() {
 }
 async function removeValue(value) { if (!window.confirm(`Hapus nilai "${value.name}"?`)) return; try { await api(`Options/remove-value/${value.id}`, {}); await loadVariants(); flash('Nilai dihapus.') } catch (e) { error.value = e.message } }
 
+// ---- Customers ----
+const customers = ref([])
+const custLoading = ref(false)
+const custSearch = ref('')
+const custModal = ref(false)
+const custDetail = ref(null)
+const custLoadingDetail = ref(false)
+const custSaving = ref(false)
+async function loadCustomers() { custLoading.value = true; try { customers.value = (await api('Customers/index')).items || [] } catch (e) { error.value = e.message } finally { custLoading.value = false } }
+const filteredCustomers = computed(() => { const q = custSearch.value.trim().toLowerCase(); if (!q) return customers.value; return customers.value.filter((c) => (c.full_name || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q) || String(c.phone || '').includes(q)) })
+async function openCustomer(row) { custModal.value = true; custDetail.value = null; custLoadingDetail.value = true; try { custDetail.value = await api(`Customers/show/${row.id}`) } catch (e) { error.value = e.message } finally { custLoadingDetail.value = false } }
+function closeCustomer() { custModal.value = false; custDetail.value = null }
+async function toggleCustomerStatus() {
+  if (!custDetail.value) return
+  const next = custDetail.value.status === 'blocked' ? 'active' : 'blocked'
+  if (!window.confirm(next === 'blocked' ? 'Blokir pelanggan ini?' : 'Aktifkan kembali pelanggan ini?')) return
+  custSaving.value = true
+  try { await api(`Customers/update-status/${custDetail.value.id}`, { status: next }); await openCustomer({ id: custDetail.value.id }); await loadCustomers(); flash('Status pelanggan diperbarui.') }
+  catch (e) { error.value = e.message } finally { custSaving.value = false }
+}
+
 onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('orders') } catch {} })
 </script>
 
@@ -293,6 +315,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         <button v-if="view === 'orders'" class="ghost--sm" type="button" :disabled="loading" @click="loadOrders">Muat ulang</button>
         <button v-else-if="view === 'categories'" class="primary primary--sm" type="button" @click="openCategory(null)">+ Tambah kategori</button>
         <button v-else-if="view === 'products'" class="primary primary--sm" type="button" @click="openProduct(null)">+ Tambah produk</button>
+        <button v-else-if="view === 'customers'" class="ghost--sm" type="button" :disabled="custLoading" @click="loadCustomers">Muat ulang</button>
       </header>
 
       <div class="alerts" aria-live="polite">
@@ -432,6 +455,32 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                     <button class="link" type="button" @click="openProduct(p)">Edit</button>
                     <button class="link-danger" type="button" @click="removeProduct(p)">Hapus</button>
                   </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </template>
+
+      <!-- Pelanggan -->
+      <template v-else-if="view === 'customers'">
+        <section class="panel" :aria-busy="custLoading">
+          <div class="panel__head">
+            <input v-model="custSearch" class="search" type="search" placeholder="Cari nama / email / telepon…">
+          </div>
+          <div v-if="custLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 4" :key="n" class="skeleton skeleton--row"></span></div>
+          <p v-else-if="!filteredCustomers.length" class="muted">Tidak ada pelanggan.</p>
+          <div v-else class="table-wrap">
+            <table class="orders-table">
+              <thead><tr><th>Pelanggan</th><th>Telepon</th><th>Pesanan</th><th>Status</th><th>Terdaftar</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="c in filteredCustomers" :key="c.id">
+                  <td data-label="Pelanggan"><strong>{{ c.full_name }}</strong><small>{{ c.email }}</small></td>
+                  <td data-label="Telepon">{{ c.phone || '—' }}</td>
+                  <td data-label="Pesanan">{{ c.order_count }}</td>
+                  <td data-label="Status"><span class="status" :class="c.status === 'active' ? 'status--paid' : 'status--expired'">{{ c.status }}</span></td>
+                  <td data-label="Terdaftar">{{ formatDate(c.created_at) }}</td>
+                  <td data-label="Aksi"><button class="link" type="button" @click="openCustomer(c)">Detail</button></td>
                 </tr>
               </tbody>
             </table>
@@ -728,6 +777,56 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         <div class="modal-actions">
           <button class="ghost--sm" type="button" @click="closeOrder">Tutup</button>
           <button class="primary" type="button" :disabled="savingOrder" @click="saveDelivery">Simpan pengiriman</button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Modal detail pelanggan -->
+  <div v-if="custModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Detail pelanggan" @click.self="closeCustomer">
+    <div class="modal-card modal-card--wide">
+      <div class="modal-head">
+        <h3 v-if="custDetail">{{ custDetail.full_name }} <span class="status" :class="custDetail.status === 'active' ? 'status--paid' : 'status--expired'">{{ custDetail.status }}</span></h3>
+        <h3 v-else>Detail pelanggan</h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="closeCustomer">×</button>
+      </div>
+      <div v-if="custLoadingDetail" class="skeleton-list" aria-hidden="true"><span v-for="n in 3" :key="n" class="skeleton skeleton--row"></span></div>
+      <template v-else-if="custDetail">
+        <div class="detail-grid">
+          <div><span>Email</span><strong>{{ custDetail.email }}</strong></div>
+          <div><span>Telepon</span><strong>{{ custDetail.phone || '—' }}</strong></div>
+          <div><span>Terdaftar</span><strong>{{ formatDateTime(custDetail.created_at) }}</strong></div>
+          <div><span>Login terakhir</span><strong>{{ formatDateTime(custDetail.last_login_at) }}</strong></div>
+        </div>
+
+        <h4 class="detail-sub">Alamat</h4>
+        <p v-if="!custDetail.addresses.length" class="muted">Belum ada alamat.</p>
+        <div v-for="a in custDetail.addresses" :key="a.id" class="detail-recipient">
+          <strong>{{ a.label }}<span v-if="a.is_default"> · Utama</span></strong>
+          <span>{{ a.recipient_name }} · {{ a.recipient_phone }}</span>
+          <span>{{ a.address_line }}</span>
+          <span>{{ [a.village_name, a.district_name, a.regency_name, a.province_name, a.postal_code].filter(Boolean).join(', ') }}</span>
+        </div>
+
+        <h4 class="detail-sub">Pesanan</h4>
+        <p v-if="!custDetail.orders.length" class="muted">Belum ada pesanan.</p>
+        <div v-else class="table-wrap">
+          <table class="orders-table variant-table">
+            <thead><tr><th>No.</th><th>Tanggal</th><th>Total</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr v-for="o in custDetail.orders" :key="o.id">
+                <td data-label="No.">{{ o.order_number }}</td>
+                <td data-label="Tanggal">{{ formatDate(o.created_at) }}</td>
+                <td data-label="Total">{{ rupiah.format(o.total) }}</td>
+                <td data-label="Status"><span class="status" :class="`status--${o.status}`">{{ o.status }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-actions">
+          <button class="ghost--sm" type="button" @click="closeCustomer">Tutup</button>
+          <button class="link-danger" type="button" :disabled="custSaving" @click="toggleCustomerStatus">{{ custDetail.status === 'blocked' ? 'Aktifkan kembali' : 'Blokir pelanggan' }}</button>
         </div>
       </template>
     </div>
