@@ -193,7 +193,7 @@ function getBrowserLocation() {
     navigator.geolocation.getCurrentPosition(
       (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     )
   })
 }
