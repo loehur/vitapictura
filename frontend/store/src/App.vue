@@ -417,10 +417,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
     </div>
     <div id="main" tabindex="-1">
     <template v-if="ordersOpen">
-      <button class="back" type="button" @click="goHome()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        Kembali
-      </button>
       <p class="category">Akun</p>
       <h1>Pesananmu</h1>
 
@@ -445,10 +441,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </template>
     <template v-else-if="cartOpen">
-      <button class="back" type="button" @click="goHome()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        Kembali
-      </button>
       <p class="category">Keranjang</p>
 
       <div v-if="!cart.items.length" class="state">
@@ -492,10 +484,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </template>
     <template v-else-if="addressBook">
-      <button class="back" type="button" @click="goHome()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        Kembali
-      </button>
       <p class="category">Akun</p>
       <h1>Alamat tersimpan</h1>
       <button class="cta" type="button" @click="openAddressModal">+ Tambah lokasi</button>
@@ -564,11 +552,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </template>
     <template v-else-if="product">
-      <button class="back" type="button" @click="goHome()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        Kembali ke katalog
-      </button>
-
       <div class="pd">
         <div class="pd-gallery">
           <div class="pd-main">
