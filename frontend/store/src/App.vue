@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 
 const catalog = ref({ categories: [], featured: [] })
 const allProducts = ref([])
@@ -73,25 +73,37 @@ function waitForGoogle(timeout = 8000) {
     poll()
   })
 }
-async function setupGoogle() {
-  if (!googleClientId.value) return
-  if (!googleReady.value) {
-    googleLoading.value = true
-    googleError.value = ''
-    const ready = await waitForGoogle()
-    googleLoading.value = false
-    if (!ready) { googleError.value = 'Skrip Google gagal dimuat. Matikan adblock lalu muat ulang halaman.'; return }
-    window.google.accounts.id.initialize({ client_id: googleClientId.value, callback: googleLogin })
-    googleReady.value = true
-  }
-  if (!googleButtonRendered && googleBtn.value) {
-    window.google.accounts.id.renderButton(googleBtn.value, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'id', width: 280 })
-    googleButtonRendered = true
+function captureGsiErrors() {
+  if (window.__vpGsiHooked) return
+  window.__vpGsiHooked = true
+  const original = console.error
+  console.error = (...args) => {
+    const text = args.map((a) => (a && a.message) ? a.message : String(a)).join(' ')
+    if (text.includes('GSI_LOGGER')) googleError.value = text
+    original.apply(console, args)
   }
 }
-async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; await setupGoogle() } catch(e){ googleError.value = e.message } }
+async function ensureGoogleReady() {
+  if (googleReady.value) return true
+  if (!googleClientId.value) return false
+  captureGsiErrors()
+  googleLoading.value = true
+  googleError.value = ''
+  const ready = await waitForGoogle()
+  googleLoading.value = false
+  if (!ready) { googleError.value = 'Skrip Google gagal dimuat. Matikan adblock lalu muat ulang halaman.'; return false }
+  window.google.accounts.id.initialize({ client_id: googleClientId.value, callback: googleLogin })
+  googleReady.value = true
+  return true
+}
+function renderGoogleButton() {
+  if (googleButtonRendered || !googleReady.value || !googleBtn.value) return
+  window.google.accounts.id.renderButton(googleBtn.value, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'id', width: 280 })
+  googleButtonRendered = true
+}
+async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId } catch(e){ googleError.value = e.message } }
 async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); loginOpen.value = false; await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
-async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; await setupGoogle() }
+async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; if(await ensureGoogleReady()){ await nextTick(); renderGoogleButton() } }
 async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;addressBook.value=true } catch(e){error.value=e.message} }
 async function saveAddress() { try { await post('/Customer/Addresses/save', addressForm.value); addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false}; await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
