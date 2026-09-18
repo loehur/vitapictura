@@ -1565,4 +1565,11 @@
   .co-summary span { color: var(--color-muted); }
   .co-total { padding-top: 0.4rem; border-top: 1px solid var(--color-line); }
   .co-total strong { font-size: 1.2rem; color: var(--color-brand-800); }
+
+  .order-card[role="button"] { cursor: pointer; }
+  .od-status { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.3rem 0; }
+  .od-items { gap: 0.5rem; }
+  .od-item { display: grid; gap: 0.15rem; padding: 0.75rem 0.85rem; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); }
+  .od-item__row { display: flex; align-items: center; justify-content: space-between; margin-top: 0.2rem; }
+  .od-item__row span { color: var(--color-muted); }
 }

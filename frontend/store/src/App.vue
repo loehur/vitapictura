@@ -50,6 +50,9 @@ const cart = ref({ items: [], total: 0 })
 const cartOpen = ref(false)
 const ordersOpen = ref(false)
 const orders = ref([])
+const orderDetailOpen = ref(false)
+const orderDetail = ref(null)
+const payingOrder = ref(false)
 const notice = ref('')
 const addingToCart = ref(false)
 const signingIn = ref(false)
@@ -380,13 +383,15 @@ async function addCart() {
 }
 async function openOrders() { return navigate('orders') }
 async function openProduct(slug) { return navigate('product', slug) }
-function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false; checkoutOpen.value = false }
+function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false; checkoutOpen.value = false; orderDetailOpen.value = false }
 const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun', checkout: '/checkout' }
-function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : (ROUTE_PATHS[name] || '/') }
+function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : name === 'order' ? `/pesanan/${slug}` : (ROUTE_PATHS[name] || '/') }
 function parseRoute(path) {
   const clean = decodeURIComponent(path || '/').replace(/\/+$/, '') || '/'
   if (clean === '/keranjang') return { name: 'cart' }
   if (clean === '/pesanan') return { name: 'orders' }
+  const orderMatch = clean.match(/^\/pesanan\/(\d+)$/)
+  if (orderMatch) return { name: 'order', id: orderMatch[1] }
   if (clean === '/akun') return { name: 'account' }
   if (clean === '/checkout') return { name: 'checkout' }
   const match = clean.match(/^\/produk\/(.+)$/)
@@ -397,6 +402,30 @@ function pushRoute(name, slug) { const path = routePath(name, slug); if (window.
 function requireCustomer() { if (!customer.value) { window.history.replaceState({}, '', '/'); startGoogleLogin(); return false } return true }
 async function loadCartView() { if (!requireCustomer()) return false; await loadCart(); resetViews(); cartOpen.value = true; return true }
 async function loadOrdersView() { if (!requireCustomer()) return false; const data = await request('/Customer/Orders/index'); orders.value = data.items; resetViews(); ordersOpen.value = true; return true }
+function safeJson(value) { try { return JSON.parse(value) } catch (e) { return [] } }
+async function loadOrderView(id) {
+  if (!requireCustomer()) return false
+  try {
+    const data = await request(`/Customer/Orders/show/${id}`)
+    data.items = (data.items || []).map((it) => ({ ...it, selections: safeJson(it.selections_snapshot) }))
+    orderDetail.value = data
+  } catch (e) { error.value = e.message; return false }
+  resetViews(); ordersOpen.value = true; orderDetailOpen.value = true
+  return true
+}
+function openOrderDetail(order) { return navigate('order', order.id) }
+const canPayOrder = computed(() => !!orderDetail.value && orderDetail.value.status === 'pending_payment' && orderDetail.value.payment_status !== 'paid')
+async function payOrder() {
+  if (!orderDetail.value) return
+  payingOrder.value = true
+  try {
+    const pay = await post(`/Customer/Payments/create/${orderDetail.value.id}`)
+    await payWithSnap(pay)
+    const id = orderDetail.value.id
+    await loadOrders()
+    await loadOrderView(id)
+  } catch (e) { error.value = e.message } finally { payingOrder.value = false }
+}
 async function loadAccountView() { if (!requireCustomer()) return false; const data = await request('/Customer/Addresses/index'); addresses.value = data.items; resetViews(); addressBook.value = true; await nextTick(); loadProvinces().catch(() => {}); startMap(); return true }
 async function loadProductView(slug) {
   const data = await request(`show/${slug}`)
@@ -411,6 +440,7 @@ async function applyRoute(route) {
     if (route.name === 'product') return await loadProductView(route.slug)
     if (route.name === 'cart') return await loadCartView()
     if (route.name === 'orders') return await loadOrdersView()
+    if (route.name === 'order') return await loadOrderView(route.id)
     if (route.name === 'account') return await loadAccountView()
     if (route.name === 'checkout') return await loadCheckoutView()
     resetViews(); product.value = null; return true
@@ -519,7 +549,42 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </div>
     <div id="main" tabindex="-1">
-    <template v-if="ordersOpen">
+    <template v-if="orderDetailOpen">
+      <p class="category">Pesanan</p>
+      <h1>{{ orderDetail?.order_number || 'Detail pesanan' }}</h1>
+      <div class="od-status">
+        <span class="status" :class="`status--${orderDetail?.status}`">{{ orderDetail?.status }}</span>
+        <span class="status" :class="`status--${orderDetail?.payment_status || 'unpaid'}`">{{ orderDetail?.payment_status || 'belum dibayar' }}</span>
+      </div>
+      <p class="order-card__meta">{{ formatDate(orderDetail?.created_at) }}</p>
+
+      <section class="co-section od-items">
+        <div v-for="(it, i) in orderDetail?.items || []" :key="i" class="od-item">
+          <strong>{{ it.product_name }}</strong>
+          <span v-for="s in it.selections" :key="s.valueId" class="cart-item__choice">{{ s.group }}: {{ s.value }}</span>
+          <div class="od-item__row"><span>{{ it.quantity }} pcs</span><strong>{{ rupiah.format(it.total_price) }}</strong></div>
+        </div>
+      </section>
+
+      <section v-if="orderDetail?.recipient" class="co-section co-summary">
+        <div><span>Penerima</span><strong>{{ orderDetail.recipient.recipientName }}</strong></div>
+        <div><span>Telepon</span><strong>{{ orderDetail.recipient.recipientPhone }}</strong></div>
+        <div><span>Alamat</span><strong>{{ orderDetail.recipient.addressLine }}</strong></div>
+      </section>
+
+      <section class="co-section co-summary">
+        <div><span>Subtotal</span><strong>{{ rupiah.format(orderDetail?.subtotal || 0) }}</strong></div>
+        <div><span>Ongkir</span><strong>{{ rupiah.format(orderDetail?.shipping_cost || 0) }}</strong></div>
+        <div class="co-total"><span>Total</span><strong>{{ rupiah.format(orderDetail?.total || 0) }}</strong></div>
+      </section>
+
+      <section v-if="orderDetail?.tracking_number" class="co-section co-summary">
+        <div><span>Resi</span><strong>{{ orderDetail.tracking_number }}</strong></div>
+      </section>
+
+      <button v-if="canPayOrder" class="cta" type="button" :disabled="payingOrder" @click="payOrder">{{ payingOrder ? 'Memproses…' : 'Bayar sekarang' }}</button>
+    </template>
+    <template v-else-if="ordersOpen">
       <p class="category">Akun</p>
       <h1>Pesananmu</h1>
 
@@ -529,7 +594,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
 
       <div v-else class="orders">
-        <article v-for="order in orders" :key="order.id" class="order-card">
+        <article v-for="order in orders" :key="order.id" class="order-card" role="button" tabindex="0" @click="openOrderDetail(order)" @keydown.enter="openOrderDetail(order)">
           <div class="order-card__head">
             <strong>{{ order.order_number }}</strong>
             <span class="status" :class="`status--${order.status}`">{{ order.status }}</span>
