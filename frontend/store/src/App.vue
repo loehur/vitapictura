@@ -640,6 +640,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <div class="pd-tabbody" v-html="product.tabs[activeTab]?.html || ''"></div>
       </div>
 
+      <div class="pd-bottom">
       <div class="pd-sticky">
         <div class="pd-qty">
           <button type="button" aria-label="Kurangi jumlah" @click="changeQty(-1)">−</button>
@@ -662,6 +663,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/><path d="M20 2.5v5M17.5 5h5"/></svg>
           <span>{{ addingToCart || uploading ? '…' : '+ Keranjang' }}</span>
         </button>
+      </div>
       </div>
 
       <div v-if="zoomUrl" class="pd-zoom" @click="zoomUrl = null">

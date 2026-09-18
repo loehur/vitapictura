@@ -1424,42 +1424,35 @@
   .pd-tabbody th,
   .pd-tabbody td { padding: 0.4rem 0.5rem; border: 1px solid var(--color-line); text-align: left; }
   .pd-tabbody ul { margin: 0.5rem 0; padding-left: 1.1rem; }
-  .pd-mobilebar { display: none; }
-  .pd-sticky { display: none; }
+  .pd-bottom { display: none; }
   @media (max-width: 47.99rem) {
-    .pd-sticky {
-      position: fixed;
-      left: 0.7rem;
-      right: 0.7rem;
-      bottom: 4.5rem;
-      z-index: 61;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      padding: 0.5rem 0.7rem;
-      border: 1px solid var(--color-line);
-      border-radius: 1rem;
-      background: var(--color-surface);
-      box-shadow: var(--shadow-pop);
-    }
-    .pd-sticky .pd-total { text-align: right; }
-    .pd-qtyrow { display: none; }
-    .pd-mobilebar {
+    .pd-bottom {
       position: fixed;
       left: 0.7rem;
       right: 0.7rem;
       bottom: 0.7rem;
       z-index: 61;
       display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: 1fr;
       overflow: hidden;
       border: 1px solid var(--color-line);
       border-radius: 1rem;
       background: rgba(255, 255, 255, 0.96);
       backdrop-filter: blur(14px);
       box-shadow: var(--shadow-pop);
+    }
+    .pd-sticky {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.5rem 0.7rem;
+    }
+    .pd-sticky .pd-total { text-align: right; }
+    .pd-qtyrow { display: none; }
+    .pd-mobilebar {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
     }
     .pd-mobilebar__item {
       display: grid;
