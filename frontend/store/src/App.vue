@@ -138,7 +138,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <button class="nav-link" type="button" @click="goHome">Katalog</button>
         <button class="nav-link" type="button" @click="openOrders">Pesanan</button>
         <button class="nav-link" type="button" @click="openCart">Keranjang<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
-        <button class="nav-link account" type="button" @click="customer ? openAddresses() : startGoogleLogin">
+        <button class="nav-link account" type="button" @click="customer ? openAddresses() : startGoogleLogin()">
           <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
           <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
           <span class="account-name">{{ customer ? customer.name : 'Masuk' }}</span>
@@ -408,7 +408,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
         <span>Pesanan</span>
       </button>
-      <button class="bottom-nav__item" type="button" :class="{ 'is-active': addressBook }" :aria-current="addressBook ? 'page' : null" @click="customer ? openAddresses() : startGoogleLogin">
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': addressBook }" :aria-current="addressBook ? 'page' : null" @click="customer ? openAddresses() : startGoogleLogin()">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
         <span>Akun</span>
       </button>
