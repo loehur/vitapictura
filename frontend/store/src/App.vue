@@ -13,6 +13,7 @@ const addressBook = ref(false)
 const addresses = ref([])
 const addressForm = ref({ label: '', recipient_name: '', recipient_phone: '', address_line: '', is_default: false })
 const selectedOptions = ref([])
+const activeImage = ref(null)
 const quote = ref(null)
 const uploadedFile = ref(null)
 const cart = ref({ items: [], total: 0 })
@@ -23,6 +24,16 @@ const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'ID
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan populer')
 const displayProducts = computed(() => activeCategory.value ? allProducts.value.filter((p) => p.category?.slug === activeCategory.value) : catalog.value.featured)
+const gallery = computed(() => {
+  if (!product.value) return []
+  const items = []
+  if (product.value.coverImage) items.push({ url: product.value.coverImage, alt: product.value.name })
+  for (const media of product.value.media || []) {
+    if (media.url && !items.some((item) => item.url === media.url)) items.push({ url: media.url, alt: media.alt_text || product.value.name })
+  }
+  return items
+})
+const heroImage = computed(() => activeImage.value || gallery.value[0]?.url || null)
 
 async function request(path) {
   const url = path.startsWith('/') ? `/api${path}` : `/api/Store/Catalog/${path}`
@@ -37,13 +48,13 @@ async function googleLogin(response) { try { const r=await fetch('/api/Customer/
 function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} window.google?.accounts.id.initialize({client_id:googleClientId.value,callback:googleLogin});window.google?.accounts.id.prompt() }
 async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;addressBook.value=true } catch(e){error.value=e.message} }
 async function saveAddress() { try { const r=await fetch('/api/Customer/Addresses/save',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(addressForm.value)});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);addressForm.value={label:'',recipient_name:'',recipient_phone:'',address_line:'',is_default:false};await openAddresses() } catch(e){error.value=e.message} }
-function chooseOption(group, value) { selectedOptions.value = [...selectedOptions.value.filter(id => !group.values.some(item => item.id === id)), value.id]; quote.value = null }
+function chooseOption(group, value) { const inGroup = selectedOptions.value.filter((id) => group.values.some((item) => item.id === id)); if (inGroup.includes(value.id) && Number(group.is_required) !== 1) { selectedOptions.value = selectedOptions.value.filter((id) => id !== value.id) } else { selectedOptions.value = [...selectedOptions.value.filter(id => !group.values.some(item => item.id === id)), value.id] } quote.value = null }
 async function getQuote() { try { const r=await fetch('/api/Customer/Configurator/quote',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);quote.value=p.data } catch(e){error.value=e.message} }
 async function uploadDesign(event) { const file=event.target.files?.[0];if(!file)return;if(!customer.value){startGoogleLogin();return}try{const form=new FormData();form.append('file',file);form.append('product_id',product.value.id);const r=await fetch('/api/Customer/Configurator/upload',{method:'POST',credentials:'include',body:form});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);uploadedFile.value=p.data}catch(e){error.value=e.message} }
 async function openCart() { if(!customer.value){startGoogleLogin();return}try{cart.value=await request('/Customer/Cart/index');cartOpen.value=true}catch(e){error.value=e.message} }
 async function addCart() { if(!customer.value){startGoogleLogin();return}try{const r=await fetch('/api/Customer/Cart/add',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1,upload_ids:uploadedFile.value?[uploadedFile.value.id]:[]})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);await openCart()}catch(e){error.value=e.message} }
 async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;ordersOpen.value=true}catch(e){error.value=e.message} }
-async function openProduct(slug) { try { product.value = await request(`show/${slug}`); selectedOptions.value=[];quote.value=null;uploadedFile.value=null; window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { error.value = e.message } }
+async function openProduct(slug) { try { product.value = await request(`show/${slug}`); selectedOptions.value=[];quote.value=null;uploadedFile.value=null;activeImage.value=null; window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { error.value = e.message } }
 function goHome() { product.value = null; cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; window.scrollTo({ top: 0, behavior: 'smooth' }) }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
@@ -83,13 +94,68 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       <form class="address-form" @submit.prevent="saveAddress"><h2>Tambah lokasi</h2><input v-model="addressForm.label" required placeholder="Label, contoh: Rumah"><input v-model="addressForm.recipient_name" required placeholder="Nama penerima"><input v-model="addressForm.recipient_phone" required placeholder="Nomor WhatsApp"><textarea v-model="addressForm.address_line" required placeholder="Alamat lengkap"></textarea><label><input v-model="addressForm.is_default" type="checkbox"> Jadikan alamat utama</label><button class="cta">Simpan alamat</button></form>
     </template>
     <template v-else-if="product">
-      <button class="back" @click="product = null">← Kembali ke katalog</button>
-      <p class="category">{{ product.category.name }}</p><h1>{{ product.name }}</h1>
-      <div class="image-placeholder"><img v-if="product.coverImage" :src="product.coverImage" :alt="product.name"><span v-else>Preview produk</span></div><p class="price">Mulai dari {{ rupiah.format(product.price) }}</p><p class="description">{{ product.description }}</p>
-      <section v-for="group in product.options" :key="group.id" class="options"><strong>{{ group.name }}</strong><button v-for="value in group.values" :key="value.id" :class="{ selected: selectedOptions.includes(value.id) }" @click="chooseOption(group, value)">{{ value.name }} <small v-if="value.price_delta">+{{ rupiah.format(value.price_delta) }}</small></button></section>
-      <button class="cta" @click="getQuote">Hitung harga</button><p v-if="quote" class="price">Total {{ rupiah.format(quote.totalPrice) }}</p>
-      <section class="upload"><strong>Unggah desain atau foto</strong><input accept="image/jpeg,image/png,application/pdf,application/zip" type="file" @change="uploadDesign"><small>JPG, PNG, PDF, atau ZIP · maksimal 50 MB</small><span v-if="uploadedFile">{{ uploadedFile.name }} siap digunakan</span></section>
-      <button class="cta" @click="addCart">Tambah ke keranjang</button>
+      <button class="back" type="button" @click="product = null">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        Kembali ke katalog
+      </button>
+
+      <div class="product-detail">
+        <div class="product-gallery">
+          <div class="product-gallery__main">
+            <img v-if="heroImage" :src="heroImage" :alt="product.name">
+            <span v-else class="product-gallery__fallback">Preview produk</span>
+          </div>
+          <div v-if="gallery.length > 1" class="product-gallery__thumbs">
+            <button v-for="(media, index) in gallery" :key="index" class="thumb" type="button" :class="{ 'is-active': heroImage === media.url }" @click="activeImage = media.url">
+              <img :src="media.url" :alt="media.alt">
+            </button>
+          </div>
+        </div>
+
+        <div class="product-info">
+          <p class="category">{{ product.category.name }}</p>
+          <h1>{{ product.name }}</h1>
+          <p class="price">Mulai dari {{ rupiah.format(product.price) }}</p>
+          <p class="description">{{ product.description }}</p>
+
+          <section v-for="group in product.options" :key="group.id" class="options">
+            <div class="options__head">
+              <strong>{{ group.name }}</strong>
+              <span v-if="Number(group.is_required) === 1" class="options__req">Wajib</span>
+              <span v-else class="options__opt">Opsional</span>
+            </div>
+            <button v-for="value in group.values" :key="value.id" type="button" :class="{ selected: selectedOptions.includes(value.id) }" @click="chooseOption(group, value)">
+              <span>{{ value.name }}</span>
+              <small v-if="value.price_delta">+{{ rupiah.format(value.price_delta) }}</small>
+            </button>
+          </section>
+
+          <section class="upload">
+            <strong>Unggah desain atau foto</strong>
+            <input accept="image/jpeg,image/png,application/pdf,application/zip" type="file" @change="uploadDesign">
+            <small>JPG, PNG, PDF, atau ZIP · maksimal 50 MB</small>
+            <span v-if="uploadedFile">{{ uploadedFile.name }} siap digunakan</span>
+          </section>
+
+          <div class="product-summary">
+            <div>
+              <span class="product-summary__label">{{ quote ? 'Total estimasi' : 'Mulai dari' }}</span>
+              <strong class="price">{{ rupiah.format(quote ? quote.totalPrice : product.price) }}</strong>
+            </div>
+            <button class="ghost ghost--sm" type="button" @click="getQuote">Hitung harga</button>
+          </div>
+
+          <button class="cta product-add" type="button" @click="addCart">Tambah ke keranjang</button>
+        </div>
+      </div>
+
+      <div class="product-cta-bar">
+        <div>
+          <span class="product-summary__label">{{ quote ? 'Total estimasi' : 'Mulai dari' }}</span>
+          <strong>{{ rupiah.format(quote ? quote.totalPrice : product.price) }}</strong>
+        </div>
+        <button class="cta" type="button" @click="addCart">Tambah</button>
+      </div>
     </template>
     <template v-else>
       <section class="hero">
@@ -147,7 +213,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </div>
       </section>
     </template>
-    <nav class="bottom-nav" aria-label="Navigasi bawah">
+    <nav v-if="!product" class="bottom-nav" aria-label="Navigasi bawah">
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" @click="goHome">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg>
         <span>Beranda</span>
