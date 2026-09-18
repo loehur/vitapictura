@@ -5,7 +5,7 @@ use App\Helpers\CustomerAuth;
 
 class Auth extends Controller
 {
-    public function config(): void { $this->handleCors(); if(!$this->isGet())$this->error('Method not allowed',405); $s=[]; $rows=$this->db()->query('SELECT name,value FROM vp_settings')->result_array()?:[]; foreach($rows as $r)$s[$r['name']]=$r['value']; $this->success(['googleClientId'=>(string)(\Env::GOOGLE_OAUTH_CLIENT_ID??''),'googleMapsApiKey'=>(string)(\Env::GOOGLE_MAPS_API_KEY??''),'storeName'=>(string)($s['store_name']??'Vita Pictura'),'waNumber'=>(string)($s['wa_number']??'')], 'Authentication configuration loaded'); }
+    public function config(): void { $this->handleCors(); if(!$this->isGet())$this->error('Method not allowed',405); $s=[]; $rows=$this->db()->query('SELECT name,value FROM vp_settings')->result_array()?:[]; foreach($rows as $r)$s[$r['name']]=$r['value']; $this->success(['googleClientId'=>(string)(\Env::GOOGLE_OAUTH_CLIENT_ID??''),'googleMapsApiKey'=>(string)(\Env::GOOGLE_MAPS_API_KEY??''),'storeName'=>(string)($s['store_name']??'Vita Pictura'),'waNumber'=>(string)($s['wa_number']??''),'midtransClientKey'=>(string)(\Env::MIDTRANS_CLIENT_KEY??''),'midtransIsProduction'=>(bool)(\Env::MIDTRANS_IS_PRODUCTION??false)], 'Authentication configuration loaded'); }
     public function google(): void {
         $this->handleCors(); if(!$this->isPost())$this->error('Method not allowed',405); CustomerAuth::ensureSchema($this->db());
         $credential=trim((string)($this->getBody()['credential']??'')); if($credential==='')$this->error('Google credential is required',422);

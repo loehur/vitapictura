@@ -11,6 +11,15 @@ const error = ref('')
 const customer = ref(null)
 const googleClientId = ref('')
 const waNumber = ref('6285210692884')
+const checkoutOpen = ref(false)
+const checkoutAddressId = ref(null)
+const checkoutQuote = ref(null)
+const checkoutRate = ref(null)
+const checkoutLoading = ref(false)
+const placingOrder = ref(false)
+const midtransClientKey = ref('')
+const midtransProd = ref(false)
+const snapReady = ref(false)
 const addressBook = ref(false)
 const addressModalOpen = ref(false)
 const addresses = ref([])
@@ -149,7 +158,7 @@ function renderGoogleButton() {
   window.google.accounts.id.renderButton(googleBtn.value, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'id', width: 280 })
   googleButtonRendered = true
 }
-async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; googleMapsKey.value=data.googleMapsApiKey||''; if(data.waNumber) waNumber.value=data.waNumber } catch(e){ googleError.value = e.message } }
+async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; googleMapsKey.value=data.googleMapsApiKey||''; if(data.waNumber) waNumber.value=data.waNumber; midtransClientKey.value=data.midtransClientKey||''; midtransProd.value=!!data.midtransIsProduction } catch(e){ googleError.value = e.message } }
 async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); closeLoginModal(); await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
 async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; pushModalHistory(); if(await ensureGoogleReady()){ await nextTick(); renderGoogleButton() } }
 const WILAYAH_API = 'https://www.emsifa.com/api-wilayah-indonesia/api'
@@ -371,14 +380,15 @@ async function addCart() {
 }
 async function openOrders() { return navigate('orders') }
 async function openProduct(slug) { return navigate('product', slug) }
-function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false }
-const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun' }
+function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false; checkoutOpen.value = false }
+const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun', checkout: '/checkout' }
 function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : (ROUTE_PATHS[name] || '/') }
 function parseRoute(path) {
   const clean = decodeURIComponent(path || '/').replace(/\/+$/, '') || '/'
   if (clean === '/keranjang') return { name: 'cart' }
   if (clean === '/pesanan') return { name: 'orders' }
   if (clean === '/akun') return { name: 'account' }
+  if (clean === '/checkout') return { name: 'checkout' }
   const match = clean.match(/^\/produk\/(.+)$/)
   if (match) return { name: 'product', slug: match[1] }
   return { name: 'home' }
@@ -402,6 +412,7 @@ async function applyRoute(route) {
     if (route.name === 'cart') return await loadCartView()
     if (route.name === 'orders') return await loadOrdersView()
     if (route.name === 'account') return await loadAccountView()
+    if (route.name === 'checkout') return await loadCheckoutView()
     resetViews(); product.value = null; return true
   } catch (e) { error.value = e.message; return false }
 }
@@ -410,6 +421,67 @@ function goHome() { return navigate('home') }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
+// ---- Checkout ----
+async function loadCheckoutView() {
+  if (!requireCustomer()) return false
+  try { const data = await request('/Customer/Addresses/index'); addresses.value = data.items || [] } catch (e) { error.value = e.message; return false }
+  resetViews(); checkoutOpen.value = true
+  checkoutQuote.value = null; checkoutRate.value = null
+  if (!addresses.value.length) return true
+  if (!checkoutAddressId.value || !addresses.value.some((a) => a.id === checkoutAddressId.value)) {
+    const def = addresses.value.find((a) => a.isDefault) || addresses.value[0]
+    checkoutAddressId.value = def.id
+  }
+  await loadQuote()
+  return true
+}
+async function loadQuote() {
+  if (!checkoutAddressId.value) { checkoutQuote.value = null; return }
+  checkoutLoading.value = true
+  try { checkoutQuote.value = await post('/Customer/Checkout/quote', { address_id: checkoutAddressId.value }); checkoutRate.value = null }
+  catch (e) { error.value = e.message; checkoutQuote.value = null }
+  finally { checkoutLoading.value = false }
+}
+function selectCheckoutAddress(id) { checkoutAddressId.value = id; loadQuote() }
+function selectRate(rate) { checkoutRate.value = rate }
+const checkoutSubtotal = computed(() => Number(checkoutQuote.value?.subtotal || 0))
+const checkoutTotal = computed(() => checkoutSubtotal.value + Number(checkoutRate.value?.price || 0))
+function openCheckout() { return navigate('checkout') }
+function loadSnap() {
+  if (window.snap || snapReady.value) return
+  const script = document.createElement('script')
+  script.src = (midtransProd.value ? 'https://app.midtrans.com' : 'https://app.sandbox.midtrans.com') + '/snap/snap.js'
+  script.setAttribute('data-client-key', midtransClientKey.value)
+  script.onload = () => { snapReady.value = true }
+  document.head.appendChild(script)
+}
+function waitForSnap(timeout = 8000) { return new Promise((resolve) => { const started = Date.now(); const poll = () => { if (window.snap) return resolve(true); if (Date.now() - started > timeout) return resolve(false); window.setTimeout(poll, 150) }; poll() }) }
+async function payWithSnap(pay) {
+  loadSnap()
+  const ready = await waitForSnap()
+  if (!ready || !window.snap) { if (pay.redirectUrl) { window.location.href = pay.redirectUrl; return } error.value = 'Gagal memuat pembayaran Midtrans.'; return }
+  await new Promise((resolve) => {
+    window.snap.pay(pay.token, {
+      onSuccess: () => { flash('Pembayaran berhasil.'); resolve() },
+      onPending: () => { flash('Menunggu pembayaran.'); resolve() },
+      onError: () => { error.value = 'Pembayaran gagal.'; resolve() },
+      onClose: () => { flash('Pembayaran belum diselesaikan.'); resolve() },
+    })
+  })
+}
+async function placeOrder() {
+  if (!checkoutRate.value) { error.value = 'Pilih kurir terlebih dahulu.'; return }
+  placingOrder.value = true
+  try {
+    const order = await post('/Customer/Checkout/create', { address_id: checkoutAddressId.value, courier_company: checkoutRate.value.company, courier_type: checkoutRate.value.type })
+    await loadCart()
+    const pay = await post(`/Customer/Payments/create/${order.id}`)
+    checkoutOpen.value = false; checkoutQuote.value = null; checkoutRate.value = null
+    await payWithSnap(pay)
+    await navigate('orders')
+  } catch (e) { error.value = e.message } finally { placingOrder.value = false }
+}
+
 onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart();window.addEventListener('popstate',()=>{if(suppressPop){suppressPop=false;return}if(loginOpen.value){loginOpen.value=false;modalHistory=false;return}if(addressModalOpen.value){addressModalOpen.value=false;modalHistory=false;return}applyRoute(parseRoute(window.location.pathname))});await applyRoute(parseRoute(window.location.pathname))})
 </script>
 
@@ -512,6 +584,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <span>Total</span>
           <strong>{{ rupiah.format(cart.total) }}</strong>
         </div>
+        <button class="cta" type="button" @click="openCheckout">Checkout</button>
       </div>
     </template>
     <template v-else-if="addressBook">
@@ -581,6 +654,43 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </form>
       </div>
       </div>
+    </template>
+    <template v-else-if="checkoutOpen">
+      <p class="category">Checkout</p>
+      <h1>Konfirmasi pesanan</h1>
+
+      <section class="co-section">
+        <div class="co-head"><strong>Alamat pengiriman</strong><button class="link" type="button" @click="navigate('account')">Kelola alamat</button></div>
+        <p v-if="!addresses.length" class="description">Belum ada alamat. Tambahkan alamat terlebih dahulu.</p>
+        <label v-for="a in addresses" :key="a.id" class="co-address" :class="{ 'is-active': checkoutAddressId === a.id }">
+          <input type="radio" name="co-address" :value="a.id" :checked="checkoutAddressId === a.id" @change="selectCheckoutAddress(a.id)">
+          <span>
+            <strong>{{ a.label }}<template v-if="a.isDefault"> · Utama</template></strong>
+            <small>{{ a.recipientName }} · {{ a.recipientPhone }}</small>
+            <small>{{ a.addressLine }}</small>
+          </span>
+        </label>
+      </section>
+
+      <section class="co-section">
+        <div class="co-head"><strong>Pengiriman</strong></div>
+        <p v-if="checkoutLoading" class="description">Menghitung ongkir…</p>
+        <p v-else-if="!checkoutQuote" class="description">Pilih alamat untuk melihat ongkir.</p>
+        <p v-else-if="!checkoutQuote.rates.length" class="description">Tidak ada layanan kurir untuk alamat ini.</p>
+        <label v-for="(r, i) in checkoutQuote.rates" :key="i" class="co-rate" :class="{ 'is-active': checkoutRate === r }">
+          <input type="radio" name="co-rate" :checked="checkoutRate === r" @change="selectRate(r)">
+          <span class="co-rate__name">{{ r.courier_name }} {{ r.courier_service_name }}</span>
+          <strong>{{ rupiah.format(r.price) }}</strong>
+        </label>
+      </section>
+
+      <section class="co-section co-summary">
+        <div><span>Subtotal</span><strong>{{ rupiah.format(checkoutSubtotal) }}</strong></div>
+        <div><span>Ongkir</span><strong>{{ rupiah.format(checkoutRate ? checkoutRate.price : 0) }}</strong></div>
+        <div class="co-total"><span>Total</span><strong>{{ rupiah.format(checkoutTotal) }}</strong></div>
+      </section>
+
+      <button class="cta" type="button" :disabled="placingOrder || !checkoutRate" @click="placeOrder">{{ placingOrder ? 'Memproses…' : 'Buat pesanan & bayar' }}</button>
     </template>
     <template v-else-if="product">
       <div class="pd">
