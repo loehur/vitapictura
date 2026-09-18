@@ -12,10 +12,17 @@ const googleClientId = ref('')
 const addressBook = ref(false)
 const addresses = ref([])
 const addressForm = ref({ label: '', recipient_name: '', recipient_phone: '', address_line: '', is_default: false })
-const selectedOptions = ref([])
-const activeImage = ref(null)
-const quote = ref(null)
-const uploadedFile = ref(null)
+const optionSelection = ref({})
+const manualImageKey = ref(null)
+const qty = ref(1)
+const noteText = ref('')
+const fileMethod = ref('1')
+const linkDrive = ref('')
+const uploadFiles = ref([])
+const uploading = ref(false)
+const uploadPercent = ref(0)
+const activeTab = ref(0)
+const zoomUrl = ref(null)
 const cart = ref({ items: [], total: 0 })
 const cartOpen = ref(false)
 const ordersOpen = ref(false)
@@ -35,16 +42,38 @@ const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.
 const displayProducts = computed(() => activeCategory.value ? allProducts.value.filter((p) => p.category?.slug === activeCategory.value) : catalog.value.featured)
 const gallery = computed(() => {
   if (!product.value) return []
-  const items = []
-  if (product.value.coverImage) items.push({ url: product.value.coverImage, alt: product.value.name })
-  for (const media of product.value.media || []) {
-    if (media.url && !items.some((item) => item.url === media.url)) items.push({ url: media.url, alt: media.alt_text || product.value.name })
-  }
-  return items
+  if (product.value.gallery?.length) return product.value.gallery
+  return product.value.coverImage ? [{ key: 'm', url: product.value.coverImage, alt: product.value.name }] : []
 })
-const heroImage = computed(() => activeImage.value || gallery.value[0]?.url || null)
+const level1Groups = computed(() => (product.value?.options || []).filter((group) => group.level === 1))
+const selectedValues = computed(() => {
+  if (!product.value) return []
+  const chosen = []
+  for (const group of product.value.options || []) {
+    const valueId = optionSelection.value[group.id]
+    if (!valueId) continue
+    const value = group.values.find((item) => item.id === valueId)
+    if (value) chosen.push(value)
+  }
+  return chosen
+})
+const activeImageKey = computed(() => 'm' + selectedValues.value.map((value) => value.imageSuffix).filter(Boolean).map((suffix) => `_${suffix}`).join(''))
+const heroImage = computed(() => {
+  if (manualImageKey.value) {
+    const picked = gallery.value.find((item) => item.key === manualImageKey.value)
+    if (picked) return picked.url
+  }
+  const match = gallery.value.find((item) => item.key === activeImageKey.value)
+  if (match) return match.url
+  return gallery.value.find((item) => item.key === 'm')?.url || gallery.value[0]?.url || product.value?.coverImage || null
+})
+const unitPrice = computed(() => (Number(product.value?.basePrice) || 0) + selectedValues.value.reduce((total, value) => total + (Number(value.priceDelta) || 0), 0))
+const orderTotal = computed(() => unitPrice.value * (Number(qty.value) || 1))
+const waLink = computed(() => `https://api.whatsapp.com/send?phone=6285210692884&text=${encodeURIComponent(`Halo Vita Pictura, saya ingin informasi mengenai produk *${product.value?.name || ''}*`)}`)
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+const MEDIA_BASE = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/+$/, '')
+function assetUrl(url) { if (!url) return ''; return /^https?:/i.test(url) ? url : `${MEDIA_BASE}${url}` }
 function apiUrl(path) { return API_BASE ? `${API_BASE}${path}` : `/api${path}` }
 async function request(path) {
   const url = apiUrl(path.startsWith('/') ? path : `/Store/Catalog/${path}`)
@@ -109,16 +138,75 @@ async function saveAddress() { try { await post('/Customer/Addresses/save', addr
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }
-function chooseOption(group, value) { const inGroup = selectedOptions.value.filter((id) => group.values.some((item) => item.id === id)); if (inGroup.includes(value.id) && Number(group.is_required) !== 1) { selectedOptions.value = selectedOptions.value.filter((id) => id !== value.id) } else { selectedOptions.value = [...selectedOptions.value.filter(id => !group.values.some(item => item.id === id)), value.id] } quote.value = null }
-async function getQuote() { try { const r=await fetch(apiUrl('/Customer/Configurator/quote'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({product_id:product.value.id,option_value_ids:selectedOptions.value,quantity:1})});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);quote.value=p.data } catch(e){error.value=e.message} }
-async function uploadDesign(event) { const file=event.target.files?.[0];if(!file)return;if(!customer.value){startGoogleLogin();return}try{const form=new FormData();form.append('file',file);form.append('product_id',product.value.id);const r=await fetch(apiUrl('/Customer/Configurator/upload'),{method:'POST',credentials:'include',body:form});const p=await r.json();if(!r.ok||!p.status)throw new Error(p.message);uploadedFile.value=p.data;flash('Desain diunggah.')}catch(e){error.value=e.message} }
+function dependentGroups(group) { return (product.value?.options || []).filter((item) => item.level === 2 && item.parentGroupId === group.id) }
+function dependentValues(group, parentGroup) { const parentId = Number(optionSelection.value[parentGroup.id]); if (!parentId) return []; const filtered = group.values.filter((value) => value.parentValueId === parentId); return filtered.length ? filtered : group.values }
+function selectOption(group, rawValue) {
+  const value = rawValue === '' || rawValue === null ? null : Number(rawValue)
+  const next = { ...optionSelection.value }
+  if (value === null) delete next[group.id]; else next[group.id] = value
+  if (group.level === 1) { for (const sub of dependentGroups(group)) delete next[sub.id] }
+  optionSelection.value = next
+  manualImageKey.value = null
+}
+function changeQty(delta) { qty.value = Math.max(1, (Number(qty.value) || 1) + delta) }
+function onFilesChange(event) { uploadFiles.value = Array.from(event.target.files || []) }
+async function uploadSelection() {
+  const ids = []
+  if (fileMethod.value !== '1' || !uploadFiles.value.length) return ids
+  uploading.value = true; uploadPercent.value = 0
+  try {
+    for (let index = 0; index < uploadFiles.value.length; index++) {
+      const form = new FormData()
+      form.append('file', uploadFiles.value[index])
+      form.append('product_id', product.value.id)
+      const response = await fetch(apiUrl('/Customer/Configurator/upload'), { method: 'POST', credentials: 'include', body: form })
+      const payload = await response.json()
+      if (!response.ok || !payload.status) throw new Error(payload.message || 'Gagal mengunggah file.')
+      ids.push(payload.data.id)
+      uploadPercent.value = Math.round(((index + 1) / uploadFiles.value.length) * 100)
+    }
+    return ids
+  } finally { uploading.value = false }
+}
 async function loadCart() { cart.value = await request('/Customer/Cart/index') }
 async function openCart() { if(!customer.value){startGoogleLogin();return}try{await loadCart();cartOpen.value=true}catch(e){error.value=e.message} }
 async function updateCartQty(item, quantity) { try { await post(`/Customer/Cart/update/${item.id}`, { quantity }); await loadCart() } catch(e){ error.value=e.message } }
 async function removeCartItem(item) { try { await post(`/Customer/Cart/remove/${item.id}`); await loadCart(); flash('Item dihapus dari keranjang.') } catch(e){ error.value=e.message } }
-async function addCart() { if(!customer.value){startGoogleLogin();return} addingToCart.value=true; try { await post('/Customer/Cart/add', { product_id: product.value.id, option_value_ids: selectedOptions.value, quantity: 1, upload_ids: uploadedFile.value ? [uploadedFile.value.id] : [] }); await loadCart(); flash('Produk ditambahkan ke keranjang.') } catch(e){ error.value=e.message } finally { addingToCart.value=false } }
+async function addCart() {
+  if (!customer.value) { startGoogleLogin(); return }
+  const missing = level1Groups.value.find((group) => group.isRequired && !optionSelection.value[group.id])
+  if (missing) { error.value = `Pilih ${missing.name} terlebih dahulu.`; return }
+  addingToCart.value = true
+  try {
+    const uploadIds = await uploadSelection()
+    let note = noteText.value.trim()
+    if (fileMethod.value === '2' && linkDrive.value.trim()) note = `${note ? `${note} | ` : ''}Link Drive: ${linkDrive.value.trim()}`
+    await post('/Customer/Cart/add', { product_id: product.value.id, option_value_ids: selectedValues.value.map((value) => value.id), quantity: Number(qty.value) || 1, note, upload_ids: uploadIds })
+    await loadCart()
+    flash('Produk ditambahkan ke keranjang.')
+    product.value = null
+  } catch (e) { error.value = e.message } finally { addingToCart.value = false }
+}
 async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;ordersOpen.value=true}catch(e){error.value=e.message} }
-async function openProduct(slug) { try { product.value = await request(`show/${slug}`); selectedOptions.value=[];quote.value=null;uploadedFile.value=null;activeImage.value=null; window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { error.value = e.message } }
+async function openProduct(slug) {
+  try {
+    const data = await request(`show/${slug}`)
+    if (data.gallery) data.gallery = data.gallery.map((item) => ({ ...item, url: assetUrl(item.url) }))
+    if (data.mal) data.mal = data.mal.map((item) => ({ ...item, url: assetUrl(item.url) }))
+    product.value = data
+    optionSelection.value = {}
+    manualImageKey.value = null
+    qty.value = 1
+    noteText.value = ''
+    fileMethod.value = '1'
+    linkDrive.value = ''
+    uploadFiles.value = []
+    uploadPercent.value = 0
+    activeTab.value = 0
+    zoomUrl.value = null
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } catch (e) { error.value = e.message }
+}
 function goHome() { product.value = null; cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; window.scrollTo({ top: 0, behavior: 'smooth' }) }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
@@ -266,62 +354,96 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         Kembali ke katalog
       </button>
 
-      <div class="product-detail">
-        <div class="product-gallery">
-          <div class="product-gallery__main">
-            <img v-if="heroImage" :src="heroImage" :alt="product.name">
-            <span v-else class="product-gallery__fallback">Preview produk</span>
+      <div class="pd">
+        <div class="pd-gallery">
+          <div class="pd-main">
+            <img v-if="heroImage" :src="heroImage" :alt="product.name" @click="zoomUrl = heroImage">
+            <span v-else class="pd-fallback">Preview produk</span>
           </div>
-          <div v-if="gallery.length > 1" class="product-gallery__thumbs">
-            <button v-for="(media, index) in gallery" :key="index" class="thumb" type="button" :class="{ 'is-active': heroImage === media.url }" @click="activeImage = media.url">
-              <img :src="media.url" :alt="media.alt">
+          <div v-if="gallery.length > 1" class="pd-thumbs">
+            <button v-for="item in gallery" :key="item.key" type="button" class="pd-thumb" :class="{ 'is-active': item.url === heroImage }" @click="manualImageKey = item.key">
+              <img :src="item.url" :alt="item.alt || product.name" loading="lazy">
             </button>
           </div>
         </div>
 
-        <div class="product-info">
+        <div class="pd-info">
           <p class="category">{{ product.category.name }}</p>
           <h1>{{ product.name }}</h1>
           <p class="price">Mulai dari {{ rupiah.format(product.price) }}</p>
-          <p class="description">{{ product.description }}</p>
 
-          <section v-for="group in product.options" :key="group.id" class="options">
-            <div class="options__head">
-              <strong>{{ group.name }}</strong>
-              <span v-if="Number(group.is_required) === 1" class="options__req">Wajib</span>
-              <span v-else class="options__opt">Opsional</span>
-            </div>
-            <button v-for="value in group.values" :key="value.id" type="button" :class="{ selected: selectedOptions.includes(value.id) }" @click="chooseOption(group, value)">
-              <span>{{ value.name }}</span>
-              <small v-if="value.price_delta">+{{ rupiah.format(value.price_delta) }}</small>
-            </button>
-          </section>
-
-          <section class="upload">
-            <strong>Unggah desain atau foto</strong>
-            <input accept="image/jpeg,image/png,application/pdf,application/zip" type="file" @change="uploadDesign">
-            <small>JPG, PNG, PDF, atau ZIP · maksimal 50 MB</small>
-            <span v-if="uploadedFile">{{ uploadedFile.name }} siap digunakan</span>
-          </section>
-
-          <div class="product-summary">
-            <div>
-              <span class="product-summary__label">{{ quote ? 'Total estimasi' : 'Mulai dari' }}</span>
-              <strong class="price">{{ rupiah.format(quote ? quote.totalPrice : product.price) }}</strong>
-            </div>
-            <button class="ghost ghost--sm" type="button" @click="getQuote">Hitung harga</button>
+          <div v-for="group in level1Groups" :key="group.id" class="pd-field">
+            <label class="pd-label">{{ group.name }}</label>
+            <select class="pd-select" :value="optionSelection[group.id] || ''" @change="selectOption(group, $event.target.value)">
+              <option value="">-</option>
+              <option v-for="value in group.values" :key="value.id" :value="value.id">{{ value.name }}<template v-if="value.priceDelta"> (+{{ rupiah.format(value.priceDelta) }})</template></option>
+            </select>
           </div>
 
-          <button class="cta product-add" type="button" :disabled="addingToCart" @click="addCart">{{ addingToCart ? 'Menambahkan…' : 'Tambah ke keranjang' }}</button>
+          <template v-for="group in level1Groups" :key="`sub-${group.id}`">
+            <div v-for="sub in dependentGroups(group)" v-show="optionSelection[group.id]" :key="sub.id" class="pd-field">
+              <label class="pd-label">{{ sub.name }}</label>
+              <select class="pd-select" :value="optionSelection[sub.id] || ''" @change="selectOption(sub, $event.target.value)">
+                <option value="">-</option>
+                <option v-for="value in dependentValues(sub, group)" :key="value.id" :value="value.id">{{ value.name }}<template v-if="value.priceDelta"> (+{{ rupiah.format(value.priceDelta) }})</template></option>
+              </select>
+            </div>
+          </template>
+
+          <section v-if="product.perluFile" class="pd-field">
+            <span class="pd-label">Pengiriman File</span>
+            <div class="pd-filebox">
+              <label class="pd-radio"><input v-model="fileMethod" type="radio" value="1"> Upload di sini</label>
+              <div v-if="fileMethod === '1'" class="pd-sublabel">
+                <input type="file" multiple accept="image/jpeg,image/png,application/pdf,application/zip" @change="onFilesChange">
+                <small>JPG, PNG, PDF, ZIP · maksimal 50 MB per file</small>
+                <span v-if="uploadFiles.length" class="pd-hint">{{ uploadFiles.length }} file dipilih</span>
+              </div>
+              <label class="pd-radio"><input v-model="fileMethod" type="radio" value="2"> Share File, Link Drive</label>
+              <input v-if="fileMethod === '2'" v-model="linkDrive" class="pd-input" type="text" placeholder="Tempel link Drive">
+            </div>
+          </section>
+
+          <section v-if="product.mal.length" class="pd-field">
+            <span class="pd-label">Download Mal / Template</span>
+            <div class="pd-mal">
+              <a v-for="item in product.mal" :key="item.name" :href="item.url" target="_blank" rel="noopener" download>{{ item.name }}</a>
+            </div>
+          </section>
+
+          <label class="pd-field">
+            <span class="pd-label">Catatan</span>
+            <textarea v-model="noteText" class="pd-input" rows="3" placeholder="Catatan untuk pesanan"></textarea>
+          </label>
+
+          <div class="pd-qtyrow">
+            <div class="pd-qty">
+              <button type="button" aria-label="Kurangi jumlah" @click="changeQty(-1)">−</button>
+              <input v-model.number="qty" type="number" min="1">
+              <button type="button" aria-label="Tambah jumlah" @click="changeQty(1)">+</button>
+            </div>
+            <div class="pd-total"><span>Total Harga</span><strong>{{ rupiah.format(orderTotal) }}</strong></div>
+          </div>
+
+          <p v-if="uploading" class="pd-hint">Mengunggah… {{ uploadPercent }}%</p>
+          <button class="cta product-add" type="button" :disabled="addingToCart || uploading" @click="addCart">{{ addingToCart || uploading ? 'Memproses…' : '(+) Tambah ke Keranjang' }}</button>
         </div>
       </div>
 
-      <div class="product-cta-bar">
-        <div>
-          <span class="product-summary__label">{{ quote ? 'Total estimasi' : 'Mulai dari' }}</span>
-          <strong>{{ rupiah.format(quote ? quote.totalPrice : product.price) }}</strong>
+      <div v-if="product.tabs.length" class="pd-tabs">
+        <div class="pd-tabnav">
+          <button v-for="(tab, index) in product.tabs" :key="index" type="button" :class="{ 'is-active': activeTab === index }" @click="activeTab = index">{{ tab.title }}</button>
         </div>
-        <button class="cta" type="button" :disabled="addingToCart" @click="addCart">{{ addingToCart ? '…' : 'Tambah' }}</button>
+        <div class="pd-tabbody" v-html="product.tabs[activeTab]?.html || ''"></div>
+      </div>
+
+      <div class="pd-mobilebar">
+        <a :href="waLink" target="_blank" rel="noopener">Tanyakan Produk</a>
+        <button type="button" :disabled="addingToCart || uploading" @click="addCart">Tambahkan ke Keranjang</button>
+      </div>
+
+      <div v-if="zoomUrl" class="pd-zoom" @click="zoomUrl = null">
+        <img :src="zoomUrl" :alt="product.name">
       </div>
     </template>
     <template v-else>
