@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
+import SearchSelect from './SearchSelect.vue'
 
 const catalog = ref({ categories: [], featured: [] })
 const allProducts = ref([])
@@ -149,10 +150,10 @@ async function loadProvinces() { if (wilayah.value.provinces.length) return; wil
 async function loadRegencies() { const id = addressForm.value.province_id; wilayah.value.regencies = id ? await fetchWilayah(`regencies/${id}.json`) : [] }
 async function loadDistricts() { const id = addressForm.value.regency_id; wilayah.value.districts = id ? await fetchWilayah(`districts/${id}.json`) : [] }
 async function loadVillages() { const id = addressForm.value.district_id; wilayah.value.villages = id ? await fetchWilayah(`villages/${id}.json`) : [] }
-async function onProvinceChange() { const item = wilayah.value.provinces.find((x) => x.id === addressForm.value.province_id); addressForm.value.province_name = item?.name || ''; addressForm.value.regency_id = ''; addressForm.value.regency_name = ''; addressForm.value.district_id = ''; addressForm.value.district_name = ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.regencies = []; wilayah.value.districts = []; wilayah.value.villages = []; try { await loadRegencies() } catch (e) { error.value = e.message } }
-async function onRegencyChange() { const item = wilayah.value.regencies.find((x) => x.id === addressForm.value.regency_id); addressForm.value.regency_name = item?.name || ''; addressForm.value.district_id = ''; addressForm.value.district_name = ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.districts = []; wilayah.value.villages = []; try { await loadDistricts() } catch (e) { error.value = e.message } }
-async function onDistrictChange() { const item = wilayah.value.districts.find((x) => x.id === addressForm.value.district_id); addressForm.value.district_name = item?.name || ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.villages = []; try { await loadVillages() } catch (e) { error.value = e.message } }
-function onVillageChange() { const item = wilayah.value.villages.find((x) => x.id === addressForm.value.village_id); addressForm.value.village_name = item?.name || '' }
+async function onProvinceChange(id = addressForm.value.province_id) { addressForm.value.province_id = id; const item = wilayah.value.provinces.find((x) => x.id === id); addressForm.value.province_name = item?.name || ''; addressForm.value.regency_id = ''; addressForm.value.regency_name = ''; addressForm.value.district_id = ''; addressForm.value.district_name = ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.regencies = []; wilayah.value.districts = []; wilayah.value.villages = []; try { await loadRegencies() } catch (e) { error.value = e.message } }
+async function onRegencyChange(id = addressForm.value.regency_id) { addressForm.value.regency_id = id; const item = wilayah.value.regencies.find((x) => x.id === id); addressForm.value.regency_name = item?.name || ''; addressForm.value.district_id = ''; addressForm.value.district_name = ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.districts = []; wilayah.value.villages = []; try { await loadDistricts() } catch (e) { error.value = e.message } }
+async function onDistrictChange(id = addressForm.value.district_id) { addressForm.value.district_id = id; const item = wilayah.value.districts.find((x) => x.id === id); addressForm.value.district_name = item?.name || ''; addressForm.value.village_id = ''; addressForm.value.village_name = ''; wilayah.value.villages = []; try { await loadVillages() } catch (e) { error.value = e.message } }
+function onVillageChange(id = addressForm.value.village_id) { addressForm.value.village_id = id; const item = wilayah.value.villages.find((x) => x.id === id); addressForm.value.village_name = item?.name || '' }
 function normalizeName(value) { return String(value || '').toLowerCase().replace(/\b(kota|kabupaten|kecamatan|kelurahan|desa|kab|kec)\b\.?/g, '').replace(/[^a-z0-9]+/g, '') }
 function matchByName(list, name) { const target = normalizeName(name); if (!target) return null; return list.find((x) => normalizeName(x.name) === target) || list.find((x) => { const n = normalizeName(x.name); return n && (n.includes(target) || target.includes(n)) }) || null }
 function loadGoogleMaps() {
@@ -513,16 +514,16 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
 
         <div class="field-grid">
           <label class="field"><span>Provinsi</span>
-            <select v-model="addressForm.province_id" @change="onProvinceChange"><option value="">-</option><option v-for="p in wilayah.provinces" :key="p.id" :value="p.id">{{ p.name }}</option></select>
+            <SearchSelect :model-value="addressForm.province_id" :options="wilayah.provinces" @update:model-value="onProvinceChange" />
           </label>
           <label class="field"><span>Kota/Kabupaten</span>
-            <select v-model="addressForm.regency_id" :disabled="!addressForm.province_id" @change="onRegencyChange"><option value="">-</option><option v-for="r in wilayah.regencies" :key="r.id" :value="r.id">{{ r.name }}</option></select>
+            <SearchSelect :model-value="addressForm.regency_id" :options="wilayah.regencies" :disabled="!addressForm.province_id" @update:model-value="onRegencyChange" />
           </label>
           <label class="field"><span>Kecamatan</span>
-            <select v-model="addressForm.district_id" :disabled="!addressForm.regency_id" @change="onDistrictChange"><option value="">-</option><option v-for="d in wilayah.districts" :key="d.id" :value="d.id">{{ d.name }}</option></select>
+            <SearchSelect :model-value="addressForm.district_id" :options="wilayah.districts" :disabled="!addressForm.regency_id" @update:model-value="onDistrictChange" />
           </label>
           <label class="field"><span>Kelurahan/Desa</span>
-            <select v-model="addressForm.village_id" :disabled="!addressForm.district_id" @change="onVillageChange"><option value="">-</option><option v-for="v in wilayah.villages" :key="v.id" :value="v.id">{{ v.name }}</option></select>
+            <SearchSelect :model-value="addressForm.village_id" :options="wilayah.villages" :disabled="!addressForm.district_id" @update:model-value="onVillageChange" />
           </label>
         </div>
 
