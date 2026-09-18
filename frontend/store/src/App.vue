@@ -277,7 +277,7 @@ async function resolveArea() {
   } catch (e) { areaStatus.value = `Area Biteship belum ditentukan: ${e.message}` }
 }
 function addressHierarchy(item) { return [item.villageName, item.districtName, item.regencyName, item.provinceName, item.postalCode].filter(Boolean).join(', ') }
-async function openAddresses() { if(!customer.value){startGoogleLogin();return} try { const data=await request('/Customer/Addresses/index');addresses.value=data.items;resetViews();addressBook.value=true; await nextTick(); loadProvinces().catch(()=>{}); startMap() } catch(e){error.value=e.message} }
+async function openAddresses() { return navigate('account') }
 async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) markerInstance.setPosition(null); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
@@ -313,7 +313,7 @@ async function uploadSelection() {
   } finally { uploading.value = false }
 }
 async function loadCart() { cart.value = await request('/Customer/Cart/index') }
-async function openCart() { if(!customer.value){startGoogleLogin();return}try{await loadCart();resetViews();cartOpen.value=true}catch(e){error.value=e.message} }
+async function openCart() { return navigate('cart') }
 async function updateCartQty(item, quantity) { try { await post(`/Customer/Cart/update/${item.id}`, { quantity }); await loadCart() } catch(e){ error.value=e.message } }
 async function removeCartItem(item) { try { await post(`/Customer/Cart/remove/${item.id}`); await loadCart(); flash('Item dihapus dari keranjang.') } catch(e){ error.value=e.message } }
 async function addCart() {
@@ -331,33 +331,48 @@ async function addCart() {
     product.value = null
   } catch (e) { error.value = e.message } finally { addingToCart.value = false }
 }
-async function openOrders() { if(!customer.value){startGoogleLogin();return}try{const data=await request('/Customer/Orders/index');orders.value=data.items;resetViews();ordersOpen.value=true}catch(e){error.value=e.message} }
-async function openProduct(slug) {
-  try {
-    const data = await request(`show/${slug}`)
-    if (data.gallery) data.gallery = data.gallery.map((item) => ({ ...item, url: assetUrl(item.url) }))
-    if (data.mal) data.mal = data.mal.map((item) => ({ ...item, url: assetUrl(item.url) }))
-    product.value = data
-    optionSelection.value = {}
-    manualImageKey.value = null
-    qty.value = 1
-    noteText.value = ''
-    fileMethod.value = '1'
-    linkDrive.value = ''
-    uploadFiles.value = []
-    uploadPercent.value = 0
-    activeTab.value = 0
-    zoomUrl.value = null
-    resetViews()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  } catch (e) { error.value = e.message }
-}
+async function openOrders() { return navigate('orders') }
+async function openProduct(slug) { return navigate('product', slug) }
 function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false }
-function goHome() { product.value = null; resetViews(); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun' }
+function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : (ROUTE_PATHS[name] || '/') }
+function parseRoute(path) {
+  const clean = decodeURIComponent(path || '/').replace(/\/+$/, '') || '/'
+  if (clean === '/keranjang') return { name: 'cart' }
+  if (clean === '/pesanan') return { name: 'orders' }
+  if (clean === '/akun') return { name: 'account' }
+  const match = clean.match(/^\/produk\/(.+)$/)
+  if (match) return { name: 'product', slug: match[1] }
+  return { name: 'home' }
+}
+function pushRoute(name, slug) { const path = routePath(name, slug); if (window.location.pathname !== path) window.history.pushState({ name }, '', path) }
+function requireCustomer() { if (!customer.value) { window.history.replaceState({}, '', '/'); startGoogleLogin(); return false } return true }
+async function loadCartView() { if (!requireCustomer()) return false; await loadCart(); resetViews(); cartOpen.value = true; return true }
+async function loadOrdersView() { if (!requireCustomer()) return false; const data = await request('/Customer/Orders/index'); orders.value = data.items; resetViews(); ordersOpen.value = true; return true }
+async function loadAccountView() { if (!requireCustomer()) return false; const data = await request('/Customer/Addresses/index'); addresses.value = data.items; resetViews(); addressBook.value = true; await nextTick(); loadProvinces().catch(() => {}); startMap(); return true }
+async function loadProductView(slug) {
+  const data = await request(`show/${slug}`)
+  if (data.gallery) data.gallery = data.gallery.map((item) => ({ ...item, url: assetUrl(item.url) }))
+  if (data.mal) data.mal = data.mal.map((item) => ({ ...item, url: assetUrl(item.url) }))
+  resetViews(); product.value = data
+  optionSelection.value = {}; manualImageKey.value = null; qty.value = 1; noteText.value = ''; fileMethod.value = '1'; linkDrive.value = ''; uploadFiles.value = []; uploadPercent.value = 0; activeTab.value = 0; zoomUrl.value = null
+  return true
+}
+async function applyRoute(route) {
+  try {
+    if (route.name === 'product') return await loadProductView(route.slug)
+    if (route.name === 'cart') return await loadCartView()
+    if (route.name === 'orders') return await loadOrdersView()
+    if (route.name === 'account') return await loadAccountView()
+    resetViews(); product.value = null; return true
+  } catch (e) { error.value = e.message; return false }
+}
+async function navigate(name, slug) { const ok = await applyRoute({ name, slug }); if (ok) pushRoute(name, slug); window.scrollTo({ top: 0, behavior: 'smooth' }); return ok }
+function goHome() { return navigate('home') }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
-onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart()})
+onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart();window.addEventListener('popstate',()=>applyRoute(parseRoute(window.location.pathname)));await applyRoute(parseRoute(window.location.pathname))})
 </script>
 
 <template>
@@ -534,7 +549,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </form>
     </template>
     <template v-else-if="product">
-      <button class="back" type="button" @click="product = null">
+      <button class="back" type="button" @click="goHome()">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
         Kembali ke katalog
       </button>
