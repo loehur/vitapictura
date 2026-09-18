@@ -10,6 +10,7 @@ const loading = ref(true)
 const error = ref('')
 const customer = ref(null)
 const googleClientId = ref('')
+const waNumber = ref('6285210692884')
 const addressBook = ref(false)
 const addressModalOpen = ref(false)
 const addresses = ref([])
@@ -87,7 +88,7 @@ const heroImage = computed(() => {
 })
 const unitPrice = computed(() => (Number(product.value?.basePrice) || 0) + selectedValues.value.reduce((total, value) => total + (Number(value.priceDelta) || 0), 0))
 const orderTotal = computed(() => unitPrice.value * (Number(qty.value) || 1))
-const waLink = computed(() => `https://api.whatsapp.com/send?phone=6285210692884&text=${encodeURIComponent(`Halo Vita Pictura, saya ingin informasi mengenai produk *${product.value?.name || ''}*`)}`)
+const waLink = computed(() => `https://api.whatsapp.com/send?phone=${waNumber.value}&text=${encodeURIComponent(`Halo Vita Pictura, saya ingin informasi mengenai produk *${product.value?.name || ''}*`)}`)
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
 const MEDIA_BASE = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/+$/, '')
@@ -148,7 +149,7 @@ function renderGoogleButton() {
   window.google.accounts.id.renderButton(googleBtn.value, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'id', width: 280 })
   googleButtonRendered = true
 }
-async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; googleMapsKey.value=data.googleMapsApiKey||'' } catch(e){ googleError.value = e.message } }
+async function loadAuth() { try { const data=await request('/Customer/Auth/config'); googleClientId.value=data.googleClientId; googleMapsKey.value=data.googleMapsApiKey||''; if(data.waNumber) waNumber.value=data.waNumber } catch(e){ googleError.value = e.message } }
 async function googleLogin(response) { signingIn.value = true; try { customer.value = await post('/Customer/Auth/google', { credential: response.credential }); closeLoginModal(); await refreshCart(); flash('Berhasil masuk.') } catch(e){error.value=e.message} finally { signingIn.value = false } }
 async function startGoogleLogin() { if(!googleClientId.value){error.value='Login Google belum dikonfigurasi.';return} loginOpen.value = true; pushModalHistory(); if(await ensureGoogleReady()){ await nextTick(); renderGoogleButton() } }
 const WILAYAH_API = 'https://www.emsifa.com/api-wilayah-indonesia/api'

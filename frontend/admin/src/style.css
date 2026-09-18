@@ -892,4 +892,11 @@
     background: #fee4e2;
     color: var(--color-danger);
   }
+  .settings-form {
+    display: grid;
+    gap: 0.8rem;
+  }
+  .settings-form textarea {
+    resize: vertical;
+  }
 }

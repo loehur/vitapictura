@@ -12,13 +12,15 @@ const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'ID
 const STOREFRONT = 'https://vpictura.com'
 function mediaUrl(url) { if (!url) return ''; return /^https?:/i.test(url) ? url : `${STOREFRONT}${url}` }
 const navItems = [
+  { key: 'dashboard', label: 'Dashboard' },
   { key: 'orders', label: 'Pesanan' },
   { key: 'categories', label: 'Kategori' },
   { key: 'products', label: 'Produk' },
   { key: 'customers', label: 'Pelanggan' },
   { key: 'uploads', label: 'Upload Desain' },
+  { key: 'settings', label: 'Pengaturan' },
 ]
-const titles = { orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan', uploads: 'Upload Desain' }
+const titles = { dashboard: 'Dashboard', orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan', uploads: 'Upload Desain', settings: 'Pengaturan' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
 
 async function api(path, body) {
@@ -39,7 +41,7 @@ async function login() {
 }
 async function logout() { try { await api('Auth/logout', {}) } catch {} user.value = null; navOpen.value = false }
 function switchView(key) { view.value = key; navOpen.value = false; loadView(key) }
-function loadView(key) { if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers(); if (key === 'uploads') return loadUploads() }
+function loadView(key) { if (key === 'dashboard') return loadDashboard(); if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers(); if (key === 'uploads') return loadUploads(); if (key === 'settings') return loadSettings() }
 
 // ---- Orders ----
 const orders = ref([])
@@ -276,7 +278,17 @@ const filteredUploads = computed(() => { const q = uploadSearch.value.trim().toL
 function formatSize(bytes) { const b = Number(bytes) || 0; if (b < 1024) return `${b} B`; if (b < 1048576) return `${(b / 1024).toFixed(0)} KB`; return `${(b / 1048576).toFixed(1)} MB` }
 async function removeUpload(row) { if (!window.confirm(`Hapus file "${row.original_name}"?`)) return; try { await api(`Uploads/remove/${row.id}`, {}); await loadUploads(); flash('Upload dihapus.') } catch (e) { error.value = e.message } }
 
-onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('orders') } catch {} })
+// ---- Dashboard ----
+const dash = ref({})
+const dashLoading = ref(false)
+async function loadDashboard() { dashLoading.value = true; try { dash.value = await api('Dashboard/index') } catch (e) { error.value = e.message } finally { dashLoading.value = false } }
+// ---- Settings ----
+const settings = ref({ store_name: '', wa_number: '', origin_name: '', origin_contact_phone: '', origin_address: '', postal_code: '', couriers: '' })
+const settingsSaving = ref(false)
+async function loadSettings() { try { const d = await api('Settings/index'); settings.value = Object.assign({}, settings.value, d) } catch (e) { error.value = e.message } }
+async function saveSettings() { settingsSaving.value = true; try { await api('Settings/save', settings.value); flash('Pengaturan disimpan.') } catch (e) { error.value = e.message } finally { settingsSaving.value = false } }
+
+onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('dashboard') } catch {} })
 </script>
 
 <template>
@@ -323,6 +335,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         </button>
         <h2>{{ currentTitle }}</h2>
         <button v-if="view === 'orders'" class="ghost--sm" type="button" :disabled="loading" @click="loadOrders">Muat ulang</button>
+        <button v-else-if="view === 'dashboard'" class="ghost--sm" type="button" :disabled="dashLoading" @click="loadDashboard">Muat ulang</button>
         <button v-else-if="view === 'categories'" class="primary primary--sm" type="button" @click="openCategory(null)">+ Tambah kategori</button>
         <button v-else-if="view === 'products'" class="primary primary--sm" type="button" @click="openProduct(null)">+ Tambah produk</button>
         <button v-else-if="view === 'customers'" class="ghost--sm" type="button" :disabled="custLoading" @click="loadCustomers">Muat ulang</button>
@@ -340,8 +353,52 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         </div>
       </div>
 
+      <!-- Dashboard -->
+      <template v-if="view === 'dashboard'">
+        <section class="stats">
+          <article class="stat"><span>Pesanan</span><strong>{{ dash.ordersTotal || 0 }}</strong></article>
+          <article class="stat"><span>Perlu diproses</span><strong>{{ dash.processing || 0 }}</strong></article>
+          <article class="stat"><span>Menunggu bayar</span><strong>{{ dash.pending || 0 }}</strong></article>
+          <article class="stat"><span>Pendapatan</span><strong>{{ rupiah.format(dash.revenue || 0) }}</strong></article>
+          <article class="stat"><span>Produk</span><strong>{{ dash.products || 0 }}</strong></article>
+          <article class="stat"><span>Pelanggan</span><strong>{{ dash.customers || 0 }}</strong></article>
+        </section>
+
+        <section class="panel">
+          <h3 class="detail-sub">Pesanan terbaru</h3>
+          <p v-if="!dash.recentOrders || !dash.recentOrders.length" class="muted">Belum ada pesanan.</p>
+          <div v-else class="table-wrap">
+            <table class="orders-table">
+              <thead><tr><th>No.</th><th>Pelanggan</th><th>Tanggal</th><th>Total</th><th>Status</th></tr></thead>
+              <tbody><tr v-for="o in dash.recentOrders" :key="o.id">
+                <td data-label="No.">{{ o.order_number }}</td>
+                <td data-label="Pelanggan">{{ o.customer_name }}</td>
+                <td data-label="Tanggal">{{ formatDate(o.created_at) }}</td>
+                <td data-label="Total">{{ rupiah.format(o.total) }}</td>
+                <td data-label="Status"><span class="status" :class="`status--${o.status}`">{{ o.status }}</span></td>
+              </tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3 class="detail-sub">Pelanggan baru</h3>
+          <p v-if="!dash.newCustomers || !dash.newCustomers.length" class="muted">Belum ada pelanggan.</p>
+          <div v-else class="table-wrap">
+            <table class="orders-table">
+              <thead><tr><th>Nama</th><th>Email</th><th>Terdaftar</th></tr></thead>
+              <tbody><tr v-for="c in dash.newCustomers" :key="c.id">
+                <td data-label="Nama">{{ c.full_name }}</td>
+                <td data-label="Email">{{ c.email }}</td>
+                <td data-label="Terdaftar">{{ formatDate(c.created_at) }}</td>
+              </tr></tbody>
+            </table>
+          </div>
+        </section>
+      </template>
+
       <!-- Pesanan -->
-      <template v-if="view === 'orders'">
+      <template v-else-if="view === 'orders'">
         <section class="stats">
           <article class="stat"><span>Total</span><strong>{{ orders.length }}</strong></article>
           <article class="stat"><span>Perlu diproses</span><strong>{{ countBy('processing') }}</strong></article>
@@ -526,6 +583,28 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
               </tbody>
             </table>
           </div>
+        </section>
+      </template>
+
+      <!-- Pengaturan -->
+      <template v-else-if="view === 'settings'">
+        <section class="panel">
+          <form class="settings-form" @submit.prevent="saveSettings">
+            <label class="field"><span>Nama toko</span><input v-model="settings.store_name" placeholder="Vita Pictura"></label>
+            <div class="field-row">
+              <label class="field"><span>Nomor WhatsApp</span><input v-model="settings.wa_number" placeholder="6285..."></label>
+              <label class="field"><span>Kode pos</span><input v-model="settings.postal_code"></label>
+            </div>
+            <div class="field-row">
+              <label class="field"><span>Nama pengirim</span><input v-model="settings.origin_name"></label>
+              <label class="field"><span>Telepon pengirim</span><input v-model="settings.origin_contact_phone"></label>
+            </div>
+            <label class="field"><span>Alamat pengirim</span><textarea v-model="settings.origin_address" rows="2"></textarea></label>
+            <label class="field"><span>Kurir (pisah koma)</span><input v-model="settings.couriers" placeholder="jne,jnt,sicepat"></label>
+            <div class="modal-actions">
+              <button class="primary" type="submit" :disabled="settingsSaving">{{ settingsSaving ? 'Menyimpan…' : 'Simpan pengaturan' }}</button>
+            </div>
+          </form>
         </section>
       </template>
     </div>
