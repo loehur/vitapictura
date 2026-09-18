@@ -391,7 +391,7 @@ function parseRoute(path) {
   if (clean === '/keranjang') return { name: 'cart' }
   if (clean === '/pesanan') return { name: 'orders' }
   const orderMatch = clean.match(/^\/pesanan\/(\d+)$/)
-  if (orderMatch) return { name: 'order', id: orderMatch[1] }
+  if (orderMatch) return { name: 'order', slug: orderMatch[1] }
   if (clean === '/akun') return { name: 'account' }
   if (clean === '/checkout') return { name: 'checkout' }
   const match = clean.match(/^\/produk\/(.+)$/)
@@ -440,7 +440,7 @@ async function applyRoute(route) {
     if (route.name === 'product') return await loadProductView(route.slug)
     if (route.name === 'cart') return await loadCartView()
     if (route.name === 'orders') return await loadOrdersView()
-    if (route.name === 'order') return await loadOrderView(route.id)
+    if (route.name === 'order') return await loadOrderView(route.slug)
     if (route.name === 'account') return await loadAccountView()
     if (route.name === 'checkout') return await loadCheckoutView()
     resetViews(); product.value = null; return true
