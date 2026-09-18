@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 const user = ref(null)
 const error = ref('')
@@ -22,6 +22,7 @@ const navItems = [
 ]
 const titles = { dashboard: 'Dashboard', orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan', uploads: 'Upload Desain', settings: 'Pengaturan' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
+watch([user, currentTitle], ([u, t]) => { document.title = u ? `${t} · Vita Pictura Admin` : 'Masuk · Vita Pictura Admin' }, { immediate: true })
 
 async function api(path, body) {
   const r = await fetch(`/api/Admin/${path}`, { method: body ? 'POST' : 'GET', credentials: 'include', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
