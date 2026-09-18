@@ -1,0 +1,7 @@
+<?php
+namespace App\Controllers\Admin;use App\Core\Controller;use App\Helpers\AdminAuth;
+class Uploads extends Controller {
+ public function index():void{$this->handleCors();$this->admin();$rows=$this->db()->query('SELECT u.id,u.original_name,u.storage_key,u.mime_type,u.size_bytes,u.created_at,c.full_name customer_name,p.name product_name FROM vp_design_uploads u LEFT JOIN vp_customers c ON c.id=u.customer_id LEFT JOIN vp_products p ON p.id=u.product_id ORDER BY u.created_at DESC LIMIT 500')->result_array()?:[];$base=rtrim((string)(\Env::MEDIA_BASE_URL??''),'/');foreach($rows as &$r){$r['id']=(int)$r['id'];$r['size_bytes']=(int)$r['size_bytes'];$r['url']=$base.'/uploads/'.$r['storage_key'];unset($r['storage_key']);}unset($r);$this->success(['items'=>$rows],'Uploads loaded');}
+ public function remove($id=null):void{$this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$this->admin();$id=(int)$id;$row=$this->db()->query('SELECT id,storage_key FROM vp_design_uploads WHERE id=? LIMIT 1',[$id])->row_array();if(!$row)$this->error('Upload tidak ditemukan',404);$base=rtrim((string)(\Env::MEDIA_STORAGE_PATH??''),'/\\');if($base!==''&&$row['storage_key']!==''){$path=$base.'/'.$row['storage_key'];if(strpos($path,$base)===0&&is_file($path))@unlink($path);}$this->db()->delete('vp_design_uploads',['id'=>$id]);$this->success(null,'Upload dihapus');}
+ private function admin():array{$a=AdminAuth::user();if(!$a)$this->error('Unauthorized',401);return $a;}
+}

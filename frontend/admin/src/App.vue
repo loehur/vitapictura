@@ -16,8 +16,9 @@ const navItems = [
   { key: 'categories', label: 'Kategori' },
   { key: 'products', label: 'Produk' },
   { key: 'customers', label: 'Pelanggan' },
+  { key: 'uploads', label: 'Upload Desain' },
 ]
-const titles = { orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan' }
+const titles = { orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan', uploads: 'Upload Desain' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
 
 async function api(path, body) {
@@ -38,7 +39,7 @@ async function login() {
 }
 async function logout() { try { await api('Auth/logout', {}) } catch {} user.value = null; navOpen.value = false }
 function switchView(key) { view.value = key; navOpen.value = false; loadView(key) }
-function loadView(key) { if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers() }
+function loadView(key) { if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers(); if (key === 'uploads') return loadUploads() }
 
 // ---- Orders ----
 const orders = ref([])
@@ -266,6 +267,15 @@ async function toggleCustomerStatus() {
   catch (e) { error.value = e.message } finally { custSaving.value = false }
 }
 
+// ---- Uploads ----
+const uploads = ref([])
+const uploadLoading = ref(false)
+const uploadSearch = ref('')
+async function loadUploads() { uploadLoading.value = true; try { uploads.value = (await api('Uploads/index')).items || [] } catch (e) { error.value = e.message } finally { uploadLoading.value = false } }
+const filteredUploads = computed(() => { const q = uploadSearch.value.trim().toLowerCase(); if (!q) return uploads.value; return uploads.value.filter((u) => (u.original_name || '').toLowerCase().includes(q) || (u.customer_name || '').toLowerCase().includes(q) || (u.product_name || '').toLowerCase().includes(q)) })
+function formatSize(bytes) { const b = Number(bytes) || 0; if (b < 1024) return `${b} B`; if (b < 1048576) return `${(b / 1024).toFixed(0)} KB`; return `${(b / 1048576).toFixed(1)} MB` }
+async function removeUpload(row) { if (!window.confirm(`Hapus file "${row.original_name}"?`)) return; try { await api(`Uploads/remove/${row.id}`, {}); await loadUploads(); flash('Upload dihapus.') } catch (e) { error.value = e.message } }
+
 onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('orders') } catch {} })
 </script>
 
@@ -316,6 +326,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         <button v-else-if="view === 'categories'" class="primary primary--sm" type="button" @click="openCategory(null)">+ Tambah kategori</button>
         <button v-else-if="view === 'products'" class="primary primary--sm" type="button" @click="openProduct(null)">+ Tambah produk</button>
         <button v-else-if="view === 'customers'" class="ghost--sm" type="button" :disabled="custLoading" @click="loadCustomers">Muat ulang</button>
+        <button v-else-if="view === 'uploads'" class="ghost--sm" type="button" :disabled="uploadLoading" @click="loadUploads">Muat ulang</button>
       </header>
 
       <div class="alerts" aria-live="polite">
@@ -485,6 +496,32 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                   <td data-label="Status"><span class="status" :class="c.status === 'active' ? 'status--paid' : 'status--expired'">{{ c.status }}</span></td>
                   <td data-label="Terdaftar">{{ formatDate(c.created_at) }}</td>
                   <td data-label="Aksi"><button class="link" type="button" @click="openCustomer(c)">Detail</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </template>
+
+      <!-- Upload desain -->
+      <template v-else-if="view === 'uploads'">
+        <section class="panel" :aria-busy="uploadLoading">
+          <div class="panel__head">
+            <input v-model="uploadSearch" class="search" type="search" placeholder="Cari file / pelanggan / produk…">
+          </div>
+          <div v-if="uploadLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 4" :key="n" class="skeleton skeleton--row"></span></div>
+          <p v-else-if="!filteredUploads.length" class="muted">Belum ada upload.</p>
+          <div v-else class="table-wrap">
+            <table class="orders-table">
+              <thead><tr><th>File</th><th>Pelanggan</th><th>Produk</th><th>Ukuran</th><th>Tanggal</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="u in filteredUploads" :key="u.id">
+                  <td data-label="File"><a :href="u.url" target="_blank" rel="noopener"><strong>{{ u.original_name }}</strong></a><small>{{ u.mime_type }}</small></td>
+                  <td data-label="Pelanggan">{{ u.customer_name || '—' }}</td>
+                  <td data-label="Produk">{{ u.product_name || '—' }}</td>
+                  <td data-label="Ukuran">{{ formatSize(u.size_bytes) }}</td>
+                  <td data-label="Tanggal">{{ formatDate(u.created_at) }}</td>
+                  <td data-label="Aksi"><span class="row-actions"><a class="link" :href="u.url" target="_blank" rel="noopener">Buka</a><button class="link-danger" type="button" @click="removeUpload(u)">Hapus</button></span></td>
                 </tr>
               </tbody>
             </table>
