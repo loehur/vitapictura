@@ -54,6 +54,32 @@ async function update(order, status) {
   catch (e) { order.status = previous; error.value = e.message }
   finally { savingId.value = null }
 }
+const orderModal = ref(false)
+const orderDetail = ref(null)
+const orderLoading = ref(false)
+const savingOrder = ref(false)
+const deliveryForm = ref({ tracking_number: '', courier_company: '', courier_service: '', status: 'shipped' })
+async function openOrder(row) {
+  orderModal.value = true; orderDetail.value = null; orderLoading.value = true
+  try {
+    const d = await api(`Orders/show/${row.id}`)
+    orderDetail.value = d
+    deliveryForm.value = { tracking_number: d.delivery?.tracking_number || '', courier_company: d.delivery?.courier_company || d.courier_company || '', courier_service: d.delivery?.courier_service || d.courier_service || '', status: d.delivery?.status || 'shipped' }
+  } catch (e) { error.value = e.message } finally { orderLoading.value = false }
+}
+function closeOrder() { orderModal.value = false; orderDetail.value = null }
+async function saveDelivery() {
+  savingOrder.value = true
+  try { await api(`Orders/save-delivery/${orderDetail.value.id}`, deliveryForm.value); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pengiriman disimpan.') }
+  catch (e) { error.value = e.message } finally { savingOrder.value = false }
+}
+async function markPaid() {
+  if (!window.confirm('Tandai pesanan ini lunas?')) return
+  savingOrder.value = true
+  try { await api(`Orders/mark-paid/${orderDetail.value.id}`, {}); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan ditandai lunas.') }
+  catch (e) { error.value = e.message } finally { savingOrder.value = false }
+}
+function formatDateTime(value) { if (!value) return '—'; const d = new Date(String(value).replace(' ', 'T')); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
 const filteredOrders = computed(() => {
   const query = search.value.trim().toLowerCase()
   return orders.value.filter((order) => {
@@ -309,7 +335,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
           <div v-else class="table-wrap">
             <table class="orders-table">
               <thead>
-                <tr><th>No. Pesanan</th><th>Pelanggan</th><th>Tanggal</th><th>Total</th><th>Bayar</th><th>Status</th></tr>
+                <tr><th>No. Pesanan</th><th>Pelanggan</th><th>Tanggal</th><th>Total</th><th>Bayar</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
                 <tr v-for="order in filteredOrders" :key="order.id">
@@ -326,6 +352,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
                       <option value="cancelled">Cancelled</option>
                     </select>
                   </td>
+                  <td data-label="Aksi"><button class="link" type="button" @click="openOrder(order)">Detail</button></td>
                 </tr>
               </tbody>
             </table>
@@ -634,5 +661,75 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
       </div>
       <div class="modal-actions"><button class="ghost--sm" type="button" @click="valueModal = false">Batal</button><button class="primary" type="submit" :disabled="valueSaving">{{ valueSaving ? 'Menyimpan…' : 'Simpan' }}</button></div>
     </form>
+  </div>
+
+  <!-- Modal detail pesanan -->
+  <div v-if="orderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Detail pesanan" @click.self="closeOrder">
+    <div class="modal-card modal-card--wide">
+      <div class="modal-head">
+        <h3 v-if="orderDetail">{{ orderDetail.order_number }} <span class="status" :class="`status--${orderDetail.status}`">{{ orderDetail.status }}</span></h3>
+        <h3 v-else>Detail pesanan</h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="closeOrder">×</button>
+      </div>
+      <div v-if="orderLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 3" :key="n" class="skeleton skeleton--row"></span></div>
+      <template v-else-if="orderDetail">
+        <div class="detail-grid">
+          <div><span>Pelanggan</span><strong>{{ orderDetail.customer_name }}</strong><small>{{ orderDetail.customer_email }}</small></div>
+          <div><span>Tanggal</span><strong>{{ formatDateTime(orderDetail.created_at) }}</strong></div>
+          <div><span>Subtotal</span><strong>{{ rupiah.format(orderDetail.subtotal) }}</strong></div>
+          <div><span>Ongkir</span><strong>{{ rupiah.format(orderDetail.shipping_cost) }}</strong></div>
+          <div><span>Total</span><strong>{{ rupiah.format(orderDetail.total) }}</strong></div>
+        </div>
+
+        <h4 class="detail-sub">Item</h4>
+        <div class="table-wrap">
+          <table class="orders-table variant-table">
+            <thead><tr><th>Produk</th><th>Pilihan</th><th>Qty</th><th>Harga</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr v-for="it in orderDetail.items" :key="it.id">
+                <td data-label="Produk">{{ it.product_name }}</td>
+                <td data-label="Pilihan"><span v-for="s in it.selections" :key="s.valueId" class="detail-chip">{{ s.group }}: {{ s.value }}</span></td>
+                <td data-label="Qty">{{ it.quantity }}</td>
+                <td data-label="Harga">{{ rupiah.format(it.unit_price) }}</td>
+                <td data-label="Total">{{ rupiah.format(it.total_price) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="detail-sub">Penerima</h4>
+        <div class="detail-recipient">
+          <strong>{{ orderDetail.recipient.recipientName }}</strong>
+          <span>{{ orderDetail.recipient.recipientPhone }}</span>
+          <span>{{ orderDetail.recipient.addressLine }}</span>
+          <span>{{ [orderDetail.recipient.areaName, orderDetail.recipient.postalCode].filter(Boolean).join(' · ') }}</span>
+        </div>
+
+        <h4 class="detail-sub">Pembayaran</h4>
+        <div class="detail-grid">
+          <div><span>Status</span><strong><span class="status" :class="`status--${orderDetail.payment?.status || 'unpaid'}`">{{ orderDetail.payment?.status || 'unpaid' }}</span></strong></div>
+          <div><span>Metode</span><strong>{{ orderDetail.payment?.payment_type || '—' }}</strong></div>
+          <div><span>Transaksi</span><strong>{{ orderDetail.payment?.transaction_id || '—' }}</strong></div>
+          <div><span>Dibayar</span><strong>{{ formatDateTime(orderDetail.payment?.paid_at) }}</strong></div>
+        </div>
+        <div class="detail-actions-line">
+          <button v-if="orderDetail.payment?.status !== 'paid'" class="ghost--sm" type="button" :disabled="savingOrder" @click="markPaid">Tandai lunas</button>
+        </div>
+
+        <h4 class="detail-sub">Pengiriman</h4>
+        <div class="field-row">
+          <label class="field"><span>Kurir</span><input v-model="deliveryForm.courier_company" placeholder="jne / jnt / sicepat"></label>
+          <label class="field"><span>Layanan</span><input v-model="deliveryForm.courier_service" placeholder="REG"></label>
+          <label class="field"><span>No. Resi</span><input v-model="deliveryForm.tracking_number"></label>
+          <label class="field"><span>Status kirim</span>
+            <select v-model="deliveryForm.status"><option value="pending">Pending</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost--sm" type="button" @click="closeOrder">Tutup</button>
+          <button class="primary" type="button" :disabled="savingOrder" @click="saveDelivery">Simpan pengiriman</button>
+        </div>
+      </template>
+    </div>
   </div>
 </template>

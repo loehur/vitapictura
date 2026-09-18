@@ -830,4 +830,65 @@
   .variant-table td {
     padding: 0.5rem 0.6rem;
   }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.6rem;
+  }
+  .detail-grid > div {
+    display: grid;
+    gap: 0.1rem;
+  }
+  .detail-grid span {
+    color: var(--color-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .detail-grid small {
+    color: var(--color-muted);
+  }
+  .detail-sub {
+    margin: 0.5rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+  }
+  .detail-chip {
+    display: inline-block;
+    margin: 0 0.25rem 0.2rem 0;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--color-brand-50);
+    color: var(--color-brand-700);
+    font-size: 0.72rem;
+  }
+  .detail-recipient {
+    display: grid;
+    gap: 0.15rem;
+    color: var(--color-muted);
+  }
+  .detail-recipient strong {
+    color: var(--color-ink);
+  }
+  .detail-actions-line {
+    display: flex;
+  }
+  .detail-actions-line .ghost--sm {
+    margin-left: 0;
+  }
+  .status--pending_payment,
+  .status--processing {
+    background: var(--color-brand-100);
+    color: var(--color-brand-700);
+  }
+  .status--paid,
+  .status--delivered {
+    background: #dcfce7;
+    color: #15803d;
+  }
+  .status--expired {
+    background: #fee4e2;
+    color: var(--color-danger);
+  }
 }
