@@ -12,8 +12,9 @@ const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'ID
 const navItems = [
   { key: 'orders', label: 'Pesanan' },
   { key: 'categories', label: 'Kategori' },
+  { key: 'products', label: 'Produk' },
 ]
-const titles = { orders: 'Pesanan', categories: 'Kategori' }
+const titles = { orders: 'Pesanan', categories: 'Kategori', products: 'Produk' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
 
 async function api(path, body) {
@@ -34,7 +35,7 @@ async function login() {
 }
 async function logout() { try { await api('Auth/logout', {}) } catch {} user.value = null; navOpen.value = false }
 function switchView(key) { view.value = key; navOpen.value = false; loadView(key) }
-function loadView(key) { if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories() }
+function loadView(key) { if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts() }
 
 // ---- Orders ----
 const orders = ref([])
@@ -96,6 +97,51 @@ async function removeCategory(row) {
   catch (e) { error.value = e.message }
 }
 
+// ---- Products ----
+const products = ref([])
+const prodLoading = ref(false)
+const prodModal = ref(false)
+const prodSaving = ref(false)
+const prodSearch = ref('')
+const prodCategory = ref('')
+const prodStatus = ref('')
+const prodForm = ref(emptyProduct())
+function emptyProduct() { return { id: null, name: '', slug: '', category_id: '', short_description: '', description: '', base_price: 0, weight_grams: 0, length_mm: '', width_mm: '', height_mm: '', cover_image_url: '', is_featured: false, popularity: 0, status: 'published' } }
+async function loadProducts() { prodLoading.value = true; try { if (!categories.value.length) { try { categories.value = (await api('Categories/index')).items || [] } catch (e) {} } products.value = (await api('Products/index')).items || [] } catch (e) { error.value = e.message } finally { prodLoading.value = false } }
+const filteredProducts = computed(() => {
+  const q = prodSearch.value.trim().toLowerCase()
+  return products.value.filter((p) => {
+    const mq = !q || p.name.toLowerCase().includes(q)
+    const mc = !prodCategory.value || String(p.category_id) === String(prodCategory.value)
+    const ms = !prodStatus.value || p.status === prodStatus.value
+    return mq && mc && ms
+  })
+})
+function mapProduct(p) { return { id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? '', short_description: p.short_description || '', description: p.description || '', base_price: Number(p.base_price) || 0, weight_grams: Number(p.weight_grams) || 0, length_mm: p.length_mm ?? '', width_mm: p.width_mm ?? '', height_mm: p.height_mm ?? '', cover_image_url: p.cover_image_url || '', is_featured: !!p.is_featured, popularity: Number(p.popularity) || 0, status: p.status } }
+async function openProduct(row) {
+  if (row && row.id) { try { prodForm.value = mapProduct(await api(`Products/show/${row.id}`)) } catch (e) { error.value = e.message; return } }
+  else prodForm.value = emptyProduct()
+  prodModal.value = true
+}
+function closeProduct() { prodModal.value = false }
+function onProductName() { if (!prodForm.value.id) prodForm.value.slug = slugify(prodForm.value.name) }
+async function saveProduct() {
+  prodSaving.value = true
+  try {
+    const body = { ...prodForm.value, is_featured: prodForm.value.is_featured ? 1 : 0, category_id: prodForm.value.category_id === '' ? null : prodForm.value.category_id }
+    if (prodForm.value.id) await api(`Products/save/${prodForm.value.id}`, body)
+    else await api('Products/save', body)
+    prodModal.value = false
+    await loadProducts()
+    flash('Produk disimpan.')
+  } catch (e) { error.value = e.message } finally { prodSaving.value = false }
+}
+async function removeProduct(row) {
+  if (!window.confirm(`Hapus produk "${row.name}"?`)) return
+  try { await api(`Products/remove/${row.id}`, {}); await loadProducts(); flash('Produk dihapus.') }
+  catch (e) { error.value = e.message }
+}
+
 onMounted(async () => { try { user.value = await api('Auth/me'); await loadView('orders') } catch {} })
 </script>
 
@@ -144,6 +190,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
         <h2>{{ currentTitle }}</h2>
         <button v-if="view === 'orders'" class="ghost--sm" type="button" :disabled="loading" @click="loadOrders">Muat ulang</button>
         <button v-else-if="view === 'categories'" class="primary primary--sm" type="button" @click="openCategory(null)">+ Tambah kategori</button>
+        <button v-else-if="view === 'products'" class="primary primary--sm" type="button" @click="openProduct(null)">+ Tambah produk</button>
       </header>
 
       <div class="alerts" aria-live="polite">
@@ -239,6 +286,55 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
           </div>
         </section>
       </template>
+
+      <!-- Produk -->
+      <template v-else-if="view === 'products'">
+        <section class="panel" :aria-busy="prodLoading">
+          <div class="panel__head">
+            <input v-model="prodSearch" class="search" type="search" placeholder="Cari produk…">
+            <select v-model="prodCategory">
+              <option value="">Semua kategori</option>
+              <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+            <select v-model="prodStatus">
+              <option value="">Semua status</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+
+          <div v-if="prodLoading" class="skeleton-list" aria-hidden="true">
+            <span v-for="n in 4" :key="n" class="skeleton skeleton--row"></span>
+          </div>
+          <p v-else-if="!filteredProducts.length" class="muted">Tidak ada produk yang cocok.</p>
+          <div v-else class="table-wrap">
+            <table class="orders-table">
+              <thead>
+                <tr><th>Produk</th><th>Kategori</th><th>Harga</th><th>Status</th><th>Unggulan</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in filteredProducts" :key="p.id">
+                  <td data-label="Produk">
+                    <div class="prod-cell">
+                      <span class="prod-thumb"><img v-if="p.cover_image_url" :src="p.cover_image_url" :alt="p.name"></span>
+                      <div><strong>{{ p.name }}</strong><small>{{ p.slug }}</small></div>
+                    </div>
+                  </td>
+                  <td data-label="Kategori">{{ p.category_name || '—' }}</td>
+                  <td data-label="Harga">{{ rupiah.format(p.base_price) }}</td>
+                  <td data-label="Status"><span class="status" :class="`status--${p.status === 'published' ? 'completed' : 'unpaid'}`">{{ p.status }}</span></td>
+                  <td data-label="Unggulan">{{ p.is_featured ? 'Ya' : '—' }}</td>
+                  <td data-label="Aksi" class="row-actions">
+                    <button class="link" type="button" @click="openProduct(p)">Edit</button>
+                    <button class="link-danger" type="button" @click="removeProduct(p)">Hapus</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </template>
     </div>
   </div>
 
@@ -267,6 +363,51 @@ onMounted(async () => { try { user.value = await api('Auth/me'); await loadView(
       <div class="modal-actions">
         <button class="ghost--sm" type="button" @click="closeCategory">Batal</button>
         <button class="primary" type="submit" :disabled="catSaving">{{ catSaving ? 'Menyimpan…' : 'Simpan' }}</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Modal produk -->
+  <div v-if="prodModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Form produk" @click.self="closeProduct">
+    <form class="modal-card" @submit.prevent="saveProduct">
+      <div class="modal-head">
+        <h3>{{ prodForm.id ? 'Edit produk' : 'Tambah produk' }}</h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="closeProduct">×</button>
+      </div>
+      <label class="field"><span>Nama</span><input v-model="prodForm.name" required placeholder="Contoh: Cetak Foto" @input="onProductName"></label>
+      <label class="field"><span>Slug (opsional)</span><input v-model="prodForm.slug" placeholder="otomatis dari nama"></label>
+      <label class="field"><span>Kategori</span>
+        <select v-model="prodForm.category_id">
+          <option value="">— Tanpa kategori —</option>
+          <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+      </label>
+      <label class="field"><span>Harga dasar (Rp)</span><input v-model.number="prodForm.base_price" type="number" min="0"></label>
+      <div class="field-row">
+        <label class="field"><span>Berat (gram)</span><input v-model.number="prodForm.weight_grams" type="number" min="0"></label>
+        <label class="field"><span>Populer</span><input v-model.number="prodForm.popularity" type="number" min="0"></label>
+      </div>
+      <div class="field-row field-row--3">
+        <label class="field"><span>Panjang (mm)</span><input v-model="prodForm.length_mm" type="number" min="0"></label>
+        <label class="field"><span>Lebar (mm)</span><input v-model="prodForm.width_mm" type="number" min="0"></label>
+        <label class="field"><span>Tinggi (mm)</span><input v-model="prodForm.height_mm" type="number" min="0"></label>
+      </div>
+      <label class="field"><span>Cover image URL</span><input v-model="prodForm.cover_image_url" placeholder="/uploads/... atau https://..."></label>
+      <label class="field"><span>Deskripsi singkat</span><input v-model="prodForm.short_description"></label>
+      <label class="field"><span>Deskripsi</span><textarea v-model="prodForm.description" rows="3"></textarea></label>
+      <div class="field-row">
+        <label class="field"><span>Status</span>
+          <select v-model="prodForm.status">
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+        <label class="check check--end"><input v-model="prodForm.is_featured" type="checkbox"> Unggulan</label>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost--sm" type="button" @click="closeProduct">Batal</button>
+        <button class="primary" type="submit" :disabled="prodSaving">{{ prodSaving ? 'Menyimpan…' : 'Simpan' }}</button>
       </div>
     </form>
   </div>
