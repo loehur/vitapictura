@@ -583,4 +583,118 @@
     opacity: 0.6;
     cursor: default;
   }
+
+  .primary--sm {
+    margin-left: auto;
+    width: auto;
+    padding: 0.55rem 0.95rem;
+    border-radius: 999px;
+    font-weight: 700;
+  }
+  .row-actions {
+    display: flex;
+    gap: 0.6rem;
+    white-space: nowrap;
+  }
+  .link-danger {
+    padding: 0.2rem 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-danger);
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+  .link-danger:hover {
+    text-decoration: underline;
+  }
+  code {
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.35rem;
+    background: var(--color-brand-50);
+    color: var(--color-brand-700);
+    font-size: 0.8rem;
+  }
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.5);
+  }
+  .modal-card {
+    display: grid;
+    gap: 0.8rem;
+    width: 100%;
+    max-width: 30rem;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 1.4rem;
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-pop);
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-head h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+  }
+  .modal-x {
+    border: 0;
+    background: transparent;
+    color: var(--color-muted);
+    font-size: 1.4rem;
+    line-height: 1;
+  }
+  .field {
+    display: grid;
+    gap: 0.3rem;
+  }
+  .field > span {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .field input,
+  .field textarea,
+  .field select {
+    width: 100%;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field);
+    font: inherit;
+    background: var(--color-surface);
+  }
+  .field textarea {
+    resize: vertical;
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.7rem;
+  }
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .check input {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    margin-top: 0.3rem;
+  }
 }
