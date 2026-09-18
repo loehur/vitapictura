@@ -63,7 +63,7 @@ watch(() => props.disabled, (value) => { if (value) closeDropdown() })
           :class="{ 'is-active': index === highlight, 'is-selected': String(option.id) === String(modelValue) }"
           role="option"
           @mouseenter="highlight = index"
-          @click="select(option)"
+          @click.prevent="select(option)"
         >{{ option.name }}</li>
       </ul>
       <button v-if="modelValue !== ''" type="button" class="ss-clear" @click="clear">Hapus pilihan</button>

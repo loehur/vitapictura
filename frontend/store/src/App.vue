@@ -513,18 +513,18 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <label class="field"><span>Nomor WhatsApp</span><input v-model="addressForm.recipient_phone" required placeholder="08xxxxxxxxxx"></label>
 
         <div class="field-grid">
-          <label class="field"><span>Provinsi</span>
+          <div class="field"><span>Provinsi</span>
             <SearchSelect :model-value="addressForm.province_id" :options="wilayah.provinces" @update:model-value="onProvinceChange" />
-          </label>
-          <label class="field"><span>Kota/Kabupaten</span>
+          </div>
+          <div class="field"><span>Kota/Kabupaten</span>
             <SearchSelect :model-value="addressForm.regency_id" :options="wilayah.regencies" :disabled="!addressForm.province_id" @update:model-value="onRegencyChange" />
-          </label>
-          <label class="field"><span>Kecamatan</span>
+          </div>
+          <div class="field"><span>Kecamatan</span>
             <SearchSelect :model-value="addressForm.district_id" :options="wilayah.districts" :disabled="!addressForm.regency_id" @update:model-value="onDistrictChange" />
-          </label>
-          <label class="field"><span>Kelurahan/Desa</span>
+          </div>
+          <div class="field"><span>Kelurahan/Desa</span>
             <SearchSelect :model-value="addressForm.village_id" :options="wilayah.villages" :disabled="!addressForm.district_id" @update:model-value="onVillageChange" />
-          </label>
+          </div>
         </div>
 
         <label class="field"><span>Kode pos</span><input v-model="addressForm.postal_code" placeholder="28111"></label>
