@@ -298,6 +298,11 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <div class="cart-item__body">
             <strong>{{ item.name }}</strong>
             <span v-for="choice in item.selections" :key="choice.valueId" class="cart-item__choice">{{ choice.group }}: {{ choice.value }}</span>
+            <span v-if="item.note" class="cart-item__note">Catatan: {{ item.note }}</span>
+            <div v-if="item.uploads && item.uploads.length" class="cart-item__files">
+              <span class="cart-item__files-label">File:</span>
+              <a v-for="file in item.uploads" :key="file.id" :href="file.url" target="_blank" rel="noopener">{{ file.name }}</a>
+            </div>
             <div class="cart-item__row">
               <div class="qty">
                 <button type="button" aria-label="Kurangi jumlah" @click="updateCartQty(item, Math.max(1, item.quantity - 1))">−</button>
