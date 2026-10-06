@@ -1010,4 +1010,289 @@
   .settings-form textarea {
     resize: vertical;
   }
+
+  /* ---- Media library ---- */
+  .media-page {
+    display: grid;
+    gap: 1rem;
+  }
+  .media-toast {
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius-field);
+    background: #ecfdf5;
+    color: var(--color-success);
+    font-weight: 700;
+  }
+  .media-toast--error {
+    background: #fee4e2;
+    color: var(--color-danger);
+  }
+  .media-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .media-toolbar__left {
+    display: grid;
+    gap: 0.2rem;
+  }
+  .media-toolbar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .media-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .media-crumb {
+    padding: 0.15rem 0.3rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--color-brand-700);
+    font-weight: 700;
+  }
+  .media-crumb.is-current {
+    color: var(--color-ink);
+    cursor: default;
+  }
+  .media-crumb-sep {
+    color: var(--color-muted);
+  }
+  .media-hint {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.82rem;
+  }
+  .view-toggle {
+    display: inline-flex;
+    padding: 0.15rem;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    background: var(--color-surface);
+  }
+  .view-toggle button {
+    padding: 0.35rem 0.8rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-muted);
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+  .view-toggle button.is-active {
+    background: var(--color-brand-100);
+    color: var(--color-brand-700);
+  }
+
+  .mlib-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.85rem;
+  }
+  .mlib-card {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field);
+    overflow: hidden;
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .mlib-card:hover {
+    border-color: var(--color-brand-200);
+    box-shadow: var(--shadow-soft);
+  }
+  .mlib-card.is-selected {
+    outline: 2px solid var(--color-brand-600);
+  }
+  .mlib-thumb {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    border: 0;
+    background: var(--color-brand-50);
+    color: var(--color-brand-500);
+    overflow: hidden;
+  }
+  .mlib-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .mlib-thumb svg {
+    width: 40%;
+    height: 40%;
+  }
+  .mlib-file-icon {
+    font-weight: 800;
+    color: var(--color-muted);
+  }
+  .mlib-card__body {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.55rem 0.6rem;
+  }
+  .mlib-name {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-ink);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mlib-meta {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.72rem;
+  }
+  .mlib-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+  }
+  .mlib-card__actions button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-brand-600);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .mlib-card__actions button.danger {
+    color: var(--color-danger);
+  }
+  .mlib-grid--list {
+    grid-template-columns: 1fr;
+  }
+  .mlib-grid--list .mlib-card {
+    grid-template-rows: none;
+    grid-template-columns: 3.5rem 1fr;
+    align-items: center;
+  }
+  .mlib-grid--list .mlib-thumb {
+    aspect-ratio: auto;
+    height: 3.5rem;
+  }
+
+  .media-preview-box {
+    display: grid;
+    place-items: center;
+    max-height: 22rem;
+    overflow: hidden;
+    border-radius: var(--radius-field);
+    background: var(--color-brand-50);
+  }
+  .media-preview-box img {
+    max-width: 100%;
+    max-height: 22rem;
+    object-fit: contain;
+  }
+  .media-preview-meta {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+  }
+  .media-preview-meta div {
+    display: grid;
+  }
+  .media-preview-meta dt {
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .media-preview-meta dd {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .media-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    word-break: break-all;
+  }
+
+  .media-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+    gap: 0.6rem;
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+  .media-picker-folder,
+  .media-picker-file {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.4rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field);
+    background: var(--color-surface);
+    text-align: left;
+  }
+  .media-picker-folder {
+    place-items: center;
+    color: var(--color-brand-600);
+    font-weight: 700;
+  }
+  .media-picker-folder svg {
+    width: 2rem;
+    height: 2rem;
+  }
+  .media-picker-file img {
+    width: 100%;
+    height: 5.5rem;
+    object-fit: cover;
+    border-radius: 0.4rem;
+  }
+  .media-picker-file span,
+  .media-picker-folder span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    color: var(--color-ink);
+  }
+
+  .media-field-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .media-field-row input {
+    flex: 1;
+  }
+  .media-field-preview {
+    margin-top: 0.5rem;
+    width: 8rem;
+    height: 8rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field);
+    overflow: hidden;
+    background: var(--color-brand-50);
+  }
+  .media-field-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .media-gallery-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
 }

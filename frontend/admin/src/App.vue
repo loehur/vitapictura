@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import MediaLibrary from './MediaLibrary.vue'
+import MediaPicker from './MediaPicker.vue'
 
 const user = ref(null)
 const error = ref('')
@@ -21,11 +23,12 @@ const navItems = [
   { key: 'orders', label: 'Pesanan' },
   { key: 'categories', label: 'Kategori' },
   { key: 'products', label: 'Produk' },
+  { key: 'media', label: 'Media' },
   { key: 'customers', label: 'Pelanggan' },
   { key: 'uploads', label: 'Upload Desain' },
   { key: 'settings', label: 'Pengaturan' },
 ]
-const titles = { dashboard: 'Dashboard', orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan', uploads: 'Upload Desain', settings: 'Pengaturan' }
+const titles = { dashboard: 'Dashboard', orders: 'Pesanan', categories: 'Kategori', products: 'Produk', media: 'Media', customers: 'Pelanggan', uploads: 'Upload Desain', settings: 'Pengaturan' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
 const firstName = computed(() => (user.value?.name || '').trim().split(/\s+/)[0] || '')
 watch([user, currentTitle], ([u, t]) => { document.title = u ? `${t} · Vita Pictura Admin` : 'Masuk · Vita Pictura Admin' }, { immediate: true })
@@ -220,6 +223,25 @@ async function uploadMedia(event) {
 async function removeMedia(item) { if (!window.confirm('Hapus media ini?')) return; try { await api(`Products/remove-media/${item.id}`, {}); await loadMedia(prodForm.value.id); flash('Media dihapus.') } catch (e) { error.value = e.message } }
 async function moveMedia(item, dir) { const list = [...prodMedia.value]; const i = list.findIndex((m) => m.id === item.id); const j = i + dir; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; prodMedia.value = list; try { await api(`Products/reorder-media/${prodForm.value.id}`, { order: list.map((m) => m.id) }) } catch (e) { error.value = e.message } }
 async function setCover(item) { try { const d = await api(`Products/set-cover/${prodForm.value.id}`, { media_id: item.id }); prodForm.value.cover_image_url = d.coverImage; flash('Cover diperbarui.') } catch (e) { error.value = e.message } }
+
+// ---- Media picker (dari library) ----
+const pickerOpen = ref(false)
+const pickerMode = ref('main')
+function openMediaPicker(mode) { pickerMode.value = mode; pickerOpen.value = true }
+async function onMediaPick(file) {
+  pickerOpen.value = false
+  if (pickerMode.value === 'gallery') {
+    if (!prodForm.value.id) return
+    try { await api(`Products/add-media/${prodForm.value.id}`, { media_id: file.id }); await loadMedia(prodForm.value.id); flash('Gambar ditambahkan ke galeri.') } catch (e) { error.value = e.message }
+  } else {
+    prodForm.value.cover_image_url = file.url
+    flash('Gambar utama dipilih.')
+  }
+}
+async function addLibraryMedia() {
+  if (!prodForm.value.id) { error.value = 'Simpan produk dulu sebelum menambah galeri.'; return }
+  openMediaPicker('gallery')
+}
 
 // ---- Variants (option groups & values) ----
 const variantModal = ref(false)
@@ -567,6 +589,11 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </section>
       </template>
 
+      <!-- Media library -->
+      <template v-else-if="view === 'media'">
+        <MediaLibrary />
+      </template>
+
       <!-- Pelanggan -->
       <template v-else-if="view === 'customers'">
         <section class="panel" :aria-busy="custLoading">
@@ -697,7 +724,15 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         <label class="field"><span>Lebar (mm)</span><input v-model="prodForm.width_mm" type="number" min="0"></label>
         <label class="field"><span>Tinggi (mm)</span><input v-model="prodForm.height_mm" type="number" min="0"></label>
       </div>
-      <label class="field"><span>Cover image URL</span><input v-model="prodForm.cover_image_url" placeholder="/uploads/... atau https://..."></label>
+      <div class="field">
+        <span>Gambar utama</span>
+        <div class="media-field-row">
+          <input v-model="prodForm.cover_image_url" placeholder="/uploads/... atau https://...">
+          <button class="ghost--sm" type="button" @click="openMediaPicker('main')">Pilih dari Media</button>
+          <button v-if="prodForm.cover_image_url" class="ghost--sm" type="button" @click="prodForm.cover_image_url = ''">Hapus</button>
+        </div>
+        <div v-if="prodForm.cover_image_url" class="media-field-preview"><img :src="mediaUrl(prodForm.cover_image_url)" alt="Pratinjau gambar utama"></div>
+      </div>
       <div v-if="prodForm.id" class="field">
         <span>Galeri media</span>
         <div class="media-grid">
@@ -714,6 +749,9 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
             <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="mediaUploading" @change="uploadMedia">
             <span>{{ mediaUploading ? '…' : '+' }}</span>
           </label>
+        </div>
+        <div class="media-gallery-actions">
+          <button class="ghost--sm" type="button" @click="addLibraryMedia">Pilih dari Media</button>
         </div>
         <small class="muted">{{ prodMedia.length }} media · JPG/PNG/WEBP · tanda ★ = cover</small>
       </div>
@@ -998,5 +1036,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         <div class="modal-actions"><button class="ghost--sm" type="button" @click="closeChangePassword">Batal</button><button class="primary" type="submit" :disabled="pwBusy">{{ pwBusy ? 'Menyimpan…' : 'Simpan' }}</button></div>
       </form>
     </div>
+
+    <MediaPicker v-if="pickerOpen" :mode="pickerMode" @select="onMediaPick" @close="pickerOpen = false" />
   </div>
 </template>
