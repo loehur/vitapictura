@@ -1007,18 +1007,18 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </div>
       </template>
     </div>
-
-    <div v-if="pwModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Ganti password" @click.self="closeChangePassword">
-      <form class="modal-card" @submit.prevent="submitChangePassword">
-        <div class="modal-head"><h3>Ganti password</h3><button class="modal-x" type="button" aria-label="Tutup" @click="closeChangePassword">×</button></div>
-        <label class="field"><span>Password saat ini</span><input v-model="pwForm.current_password" type="password" required autocomplete="current-password"></label>
-        <label class="field"><span>Password baru</span><input v-model="pwForm.new_password" type="password" required minlength="8" autocomplete="new-password"></label>
-        <label class="field"><span>Konfirmasi password baru</span><input v-model="pwForm.confirm_password" type="password" required autocomplete="new-password"></label>
-        <p v-if="pwError" class="error">{{ pwError }}</p>
-        <div class="modal-actions"><button class="ghost--sm" type="button" @click="closeChangePassword">Batal</button><button class="primary" type="submit" :disabled="pwBusy">{{ pwBusy ? 'Menyimpan…' : 'Simpan' }}</button></div>
-      </form>
-    </div>
-
-    <MediaPicker v-if="pickerOpen" :mode="pickerMode" @select="onMediaPick" @close="pickerOpen = false" />
   </div>
+
+  <div v-if="pwModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Ganti password" @click.self="closeChangePassword">
+    <form class="modal-card" @submit.prevent="submitChangePassword">
+      <div class="modal-head"><h3>Ganti password</h3><button class="modal-x" type="button" aria-label="Tutup" @click="closeChangePassword">×</button></div>
+      <label class="field"><span>Password saat ini</span><input v-model="pwForm.current_password" type="password" required autocomplete="current-password"></label>
+      <label class="field"><span>Password baru</span><input v-model="pwForm.new_password" type="password" required minlength="8" autocomplete="new-password"></label>
+      <label class="field"><span>Konfirmasi password baru</span><input v-model="pwForm.confirm_password" type="password" required autocomplete="new-password"></label>
+      <p v-if="pwError" class="error">{{ pwError }}</p>
+      <div class="modal-actions"><button class="ghost--sm" type="button" @click="closeChangePassword">Batal</button><button class="primary" type="submit" :disabled="pwBusy">{{ pwBusy ? 'Menyimpan…' : 'Simpan' }}</button></div>
+    </form>
+  </div>
+
+  <MediaPicker v-if="pickerOpen" :mode="pickerMode" @select="onMediaPick" @close="pickerOpen = false" />
 </template>
