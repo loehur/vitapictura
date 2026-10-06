@@ -24,6 +24,14 @@ class Media extends Controller
         'image/svg+xml' => 'svg',
         'image/bmp' => 'bmp',
         'application/pdf' => 'pdf',
+        'application/zip' => 'zip',
+        'application/x-zip-compressed' => 'zip',
+        'application/x-rar-compressed' => 'rar',
+        'application/vnd.rar' => 'rar',
+        'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'application/vnd.ms-excel' => 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
     ];
 
     public function index(): void
@@ -233,7 +241,7 @@ class Media extends Controller
         }
 
         if (!$saved) {
-            $this->error('Upload gagal. Pastikan format gambar JPG, PNG, WEBP, GIF, BMP, SVG, atau PDF.', 422);
+            $this->error('Upload gagal. Format yang didukung: JPG, PNG, WEBP, GIF, BMP, SVG, PDF, ZIP, RAR, DOC, DOCX, XLS, XLSX.', 422);
         }
 
         $this->success(['items' => $saved, 'count' => count($saved)], 'Upload berhasil');

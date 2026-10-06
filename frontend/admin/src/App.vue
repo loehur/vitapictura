@@ -164,7 +164,7 @@ const prodSearch = ref('')
 const prodCategory = ref('')
 const prodStatus = ref('')
 const prodForm = ref(emptyProduct())
-function emptyProduct() { return { id: null, name: '', slug: '', category_id: '', short_description: '', description: '', base_price: 0, weight_grams: 0, length_mm: '', width_mm: '', height_mm: '', cover_image_url: '', is_featured: false, popularity: 0, status: 'published' } }
+function emptyProduct() { return { id: null, name: '', slug: '', category_id: '', short_description: '', description: '', base_price: 0, weight_grams: 0, length_mm: '', width_mm: '', height_mm: '', cover_image_url: '', is_featured: false, popularity: 0, status: 'published', perlu_file: false, mal: [] } }
 async function loadProducts() { prodLoading.value = true; try { if (!categories.value.length) { try { categories.value = (await api('Categories/index')).items || [] } catch (e) {} } products.value = (await api('Products/index')).items || [] } catch (e) { error.value = e.message } finally { prodLoading.value = false } }
 const filteredProducts = computed(() => {
   const q = prodSearch.value.trim().toLowerCase()
@@ -175,7 +175,7 @@ const filteredProducts = computed(() => {
     return mq && mc && ms
   })
 })
-function mapProduct(p) { return { id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? '', short_description: p.short_description || '', description: p.description || '', base_price: Number(p.base_price) || 0, weight_grams: Number(p.weight_grams) || 0, length_mm: p.length_mm ?? '', width_mm: p.width_mm ?? '', height_mm: p.height_mm ?? '', cover_image_url: p.cover_image_url || '', is_featured: !!p.is_featured, popularity: Number(p.popularity) || 0, status: p.status } }
+function mapProduct(p) { return { id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? '', short_description: p.short_description || '', description: p.description || '', base_price: Number(p.base_price) || 0, weight_grams: Number(p.weight_grams) || 0, length_mm: p.length_mm ?? '', width_mm: p.width_mm ?? '', height_mm: p.height_mm ?? '', cover_image_url: p.cover_image_url || '', is_featured: !!p.is_featured, popularity: Number(p.popularity) || 0, status: p.status, perlu_file: !!p.perlu_file, mal: Array.isArray(p.mal) ? p.mal : [] } }
 async function openProduct(row) {
   if (row && row.id) {
     try { prodForm.value = mapProduct(await api(`Products/show/${row.id}`)) } catch (e) { error.value = e.message; return }
@@ -218,6 +218,9 @@ async function onMediaPick(file) {
   if (pickerMode.value === 'gallery') {
     if (!prodForm.value.id) return
     try { await api(`Products/add-media/${prodForm.value.id}`, { media_id: file.id }); await loadMedia(prodForm.value.id); flash('Gambar ditambahkan ke galeri.') } catch (e) { error.value = e.message }
+  } else if (pickerMode.value === 'mal') {
+    if (!prodForm.value.mal.some((m) => m.url === file.url)) prodForm.value.mal.push({ name: file.name, url: file.url })
+    flash('File mal ditambahkan.')
   } else {
     prodForm.value.cover_image_url = file.url
     flash('Gambar utama dipilih.')
@@ -737,6 +740,22 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </div>
         <small class="muted">{{ prodMedia.length }} media · tanda ★ = cover</small>
       </div>
+      <fieldset class="product-files">
+        <legend>File Mal / Template</legend>
+        <label class="check"><input v-model="prodForm.perlu_file" type="checkbox"> Produk memerlukan file dari pelanggan (pengiriman file)</label>
+        <p class="muted">File mal/template yang bisa diunduh pelanggan (opsional). Pilih dari Media.</p>
+        <div v-if="prodForm.mal.length" class="mal-list">
+          <div v-for="(item, i) in prodForm.mal" :key="`${item.url}-${i}`" class="mal-item">
+            <span class="mal-item__name">{{ item.name }}</span>
+            <a class="mal-item__link" :href="mediaUrl(item.url)" target="_blank" rel="noopener">Buka</a>
+            <button class="mal-item__remove" type="button" @click="prodForm.mal.splice(i, 1)">Hapus</button>
+          </div>
+        </div>
+        <p v-else class="muted">Belum ada file mal.</p>
+        <div class="media-gallery-actions">
+          <button class="ghost--sm" type="button" @click="openMediaPicker('mal')">Tambah dari Media</button>
+        </div>
+      </fieldset>
       <div v-if="prodForm.id" class="field">
         <span>Varian</span>
         <button class="ghost--sm variant-open" type="button" @click="openVariants">Kelola varian (grup &amp; nilai)</button>

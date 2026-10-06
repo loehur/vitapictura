@@ -24,6 +24,11 @@ const fileInput = ref(null)
 
 const isEmpty = computed(() => !loading.value && folders.value.length === 0 && files.value.length === 0)
 
+function ext(name) {
+  const part = String(name || '').split('.').pop()
+  return part && part !== name ? part.toUpperCase() : 'FILE'
+}
+
 function toast(message, isError = false) {
   if (isError) {
     error.value = message
@@ -176,7 +181,7 @@ onMounted(() => load(0))
           </div>
           <button type="button" class="ghost--sm" @click="onCreateFolder">+ Folder</button>
           <button type="button" class="primary primary--sm" :disabled="uploading" @click="triggerUpload">{{ uploading ? 'Mengunggah…' : 'Upload' }}</button>
-          <input ref="fileInput" type="file" multiple accept="image/*,.pdf" hidden @change="onUploadChange">
+          <input ref="fileInput" type="file" multiple accept="image/*,.pdf,.zip,.rar,.doc,.docx,.xls,.xlsx" hidden @change="onUploadChange">
         </div>
       </div>
 
@@ -205,7 +210,7 @@ onMounted(() => load(0))
         >
           <div class="mlib-thumb">
             <img v-if="file.isImage" :src="file.url" :alt="file.alt || file.name" loading="lazy">
-            <span v-else class="mlib-file-icon">PDF</span>
+            <span v-else class="mlib-file-icon">{{ ext(file.name) }}</span>
           </div>
           <div class="mlib-card__body">
             <p class="mlib-name" :title="file.name">{{ file.name }}</p>
@@ -228,7 +233,7 @@ onMounted(() => load(0))
         </div>
         <div class="media-preview-box">
           <img v-if="selected.isImage" :src="selected.url" :alt="selected.name">
-          <span v-else class="mlib-file-icon">PDF</span>
+          <span v-else class="mlib-file-icon">{{ ext(selected.name) }}</span>
         </div>
         <dl class="media-preview-meta">
           <div><dt>Nama</dt><dd>{{ selected.name }}</dd></div>

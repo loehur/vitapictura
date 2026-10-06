@@ -1,8 +1,8 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { browseMedia } from './mediaApi'
 
-defineProps({ mode: { type: String, default: 'main' } })
+const props = defineProps({ mode: { type: String, default: 'main' } })
 const emit = defineEmits(['select', 'close'])
 
 const folderId = ref(0)
@@ -12,6 +12,17 @@ const files = ref([])
 const loading = ref(false)
 const error = ref('')
 
+const title = computed(() => {
+  if (props.mode === 'gallery') return 'Tambah gambar galeri'
+  if (props.mode === 'mal') return 'Pilih file dari Media'
+  return 'Pilih gambar utama'
+})
+
+function ext(name) {
+  const part = String(name || '').split('.').pop()
+  return part && part !== name ? part.toUpperCase() : 'FILE'
+}
+
 async function load(id = 0) {
   loading.value = true
   error.value = ''
@@ -20,7 +31,8 @@ async function load(id = 0) {
     folderId.value = data.folderId ?? id
     breadcrumb.value = data.breadcrumb || [{ id: 0, name: 'Media' }]
     folders.value = data.folders || []
-    files.value = (data.files || []).filter((file) => file.isImage)
+    const all = data.files || []
+    files.value = props.mode === 'mal' ? all : all.filter((file) => file.isImage)
   } catch (e) {
     error.value = e.message || 'Gagal memuat media'
   } finally {
@@ -32,10 +44,10 @@ onMounted(() => load(0))
 </script>
 
 <template>
-  <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Pilih gambar" @click.self="emit('close')">
+  <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Pilih media" @click.self="emit('close')">
     <section class="modal-card modal-card--wide media-picker">
       <div class="modal-head">
-        <h3>{{ mode === 'gallery' ? 'Tambah gambar galeri' : 'Pilih gambar utama' }}</h3>
+        <h3>{{ title }}</h3>
         <button class="modal-x" type="button" aria-label="Tutup" @click="emit('close')">×</button>
       </div>
 
@@ -54,10 +66,13 @@ onMounted(() => load(0))
           <span>{{ folder.name }}</span>
         </button>
         <button v-for="file in files" :key="`file-${file.id}`" type="button" class="media-picker-file" :title="file.name" @click="emit('select', file)">
-          <img :src="file.url" :alt="file.name">
+          <img v-if="file.isImage" :src="file.url" :alt="file.name">
+          <span v-else class="media-picker-file__badge">{{ ext(file.name) }}</span>
           <span>{{ file.name }}</span>
         </button>
-        <p v-if="!folders.length && !files.length" class="muted">Belum ada gambar di folder ini.</p>
+        <p v-if="!folders.length && !files.length" class="muted">
+          {{ mode === 'mal' ? 'Belum ada file di folder ini.' : 'Belum ada gambar di folder ini.' }}
+        </p>
       </div>
 
       <div class="modal-actions">
