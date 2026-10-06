@@ -1465,16 +1465,16 @@
   }
   .pd-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .pd-thumb.is-active { border-color: var(--color-brand-600); }
-  .pd-info { display: grid; gap: 0.9rem; min-width: 0; }
+  .pd-info { display: grid; gap: 0.6rem; min-width: 0; }
   .pd-info h1 { margin: 0; font-size: 1.6rem; overflow-wrap: anywhere; }
-  .pd-field { display: grid; gap: 0.35rem; min-width: 0; }
+  .pd-info .pd-field { display: grid; gap: 0.25rem; min-width: 0; margin: 0; }
   .pd-label { font-size: 0.85rem; font-weight: 700; color: var(--color-brand-800); }
   .pd-select,
   .pd-input {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    padding: 0.6rem 0.7rem;
+    padding: 0.5rem 0.65rem;
     border: 1px solid var(--color-line);
     border-radius: var(--radius-field);
     background: var(--color-surface);
@@ -1483,9 +1483,9 @@
   }
   .pd-filebox {
     display: grid;
-    gap: 0.6rem;
+    gap: 0.45rem;
     min-width: 0;
-    padding: 0.85rem;
+    padding: 0.65rem;
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -1496,12 +1496,12 @@
     min-width: 0;
   }
   .pd-radio { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-weight: 600; }
-  .pd-sublabel { display: grid; gap: 0.35rem; min-width: 0; padding-left: 1.6rem; }
+  .pd-sublabel { display: grid; gap: 0.25rem; min-width: 0; padding-left: 1.35rem; }
   .pd-sublabel small { color: var(--color-muted); }
   .pd-hint { color: var(--color-muted); font-size: 0.85rem; }
-  .pd-mal { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .pd-mal { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .pd-mal a {
-    padding: 0.45rem 0.75rem;
+    padding: 0.4rem 0.7rem;
     border: 1px solid var(--color-brand-200);
     border-radius: 999px;
     background: var(--color-brand-50);
