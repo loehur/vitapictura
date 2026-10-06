@@ -1268,13 +1268,9 @@
     color: var(--color-ink);
   }
 
-  .media-field-row {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-  .media-field-row input {
-    flex: 1;
+  .media-field-empty {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
   }
   .media-field-preview {
     margin-top: 0.5rem;

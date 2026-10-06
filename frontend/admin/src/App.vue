@@ -204,22 +204,7 @@ async function removeProduct(row) {
 
 // ---- Product media ----
 const prodMedia = ref([])
-const mediaUploading = ref(false)
 async function loadMedia(pid) { try { prodMedia.value = (await api(`Products/media/${pid}`)).items || [] } catch (e) { prodMedia.value = [] } }
-async function uploadMedia(event) {
-  const file = event.target.files?.[0]
-  if (!file || !prodForm.value.id) return
-  mediaUploading.value = true
-  try {
-    const fd = new FormData()
-    fd.append('file', file)
-    const r = await fetch(`/api/Admin/Products/upload-media/${prodForm.value.id}`, { method: 'POST', credentials: 'include', body: fd })
-    const p = await r.json()
-    if (!r.ok || !p.status) throw new Error(p.message)
-    await loadMedia(prodForm.value.id)
-    flash('Media diunggah.')
-  } catch (e) { error.value = e.message } finally { mediaUploading.value = false; event.target.value = '' }
-}
 async function removeMedia(item) { if (!window.confirm('Hapus media ini?')) return; try { await api(`Products/remove-media/${item.id}`, {}); await loadMedia(prodForm.value.id); flash('Media dihapus.') } catch (e) { error.value = e.message } }
 async function moveMedia(item, dir) { const list = [...prodMedia.value]; const i = list.findIndex((m) => m.id === item.id); const j = i + dir; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; prodMedia.value = list; try { await api(`Products/reorder-media/${prodForm.value.id}`, { order: list.map((m) => m.id) }) } catch (e) { error.value = e.message } }
 async function setCover(item) { try { const d = await api(`Products/set-cover/${prodForm.value.id}`, { media_id: item.id }); prodForm.value.cover_image_url = d.coverImage; flash('Cover diperbarui.') } catch (e) { error.value = e.message } }
@@ -726,16 +711,16 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
       </div>
       <div class="field">
         <span>Gambar utama</span>
-        <div class="media-field-row">
-          <input v-model="prodForm.cover_image_url" placeholder="/uploads/... atau https://...">
-          <button class="ghost--sm" type="button" @click="openMediaPicker('main')">Pilih dari Media</button>
+        <div v-if="prodForm.cover_image_url" class="media-field-preview"><img :src="mediaUrl(prodForm.cover_image_url)" alt="Pratinjau gambar utama"></div>
+        <p v-else class="muted media-field-empty">Belum ada gambar utama. Pilih dari Media.</p>
+        <div class="media-gallery-actions">
+          <button class="ghost--sm" type="button" @click="openMediaPicker('main')">{{ prodForm.cover_image_url ? 'Ganti gambar' : 'Pilih dari Media' }}</button>
           <button v-if="prodForm.cover_image_url" class="ghost--sm" type="button" @click="prodForm.cover_image_url = ''">Hapus</button>
         </div>
-        <div v-if="prodForm.cover_image_url" class="media-field-preview"><img :src="mediaUrl(prodForm.cover_image_url)" alt="Pratinjau gambar utama"></div>
       </div>
       <div v-if="prodForm.id" class="field">
         <span>Galeri media</span>
-        <div class="media-grid">
+        <div v-if="prodMedia.length" class="media-grid">
           <div v-for="m in prodMedia" :key="m.id" class="media-item" :class="{ 'is-cover': m.url === prodForm.cover_image_url }">
             <img :src="mediaUrl(m.url)" alt="">
             <div class="media-tools">
@@ -745,15 +730,12 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
               <button type="button" class="media-btn media-btn--danger" title="Hapus" @click="removeMedia(m)">×</button>
             </div>
           </div>
-          <label class="media-add" title="Unggah media">
-            <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="mediaUploading" @change="uploadMedia">
-            <span>{{ mediaUploading ? '…' : '+' }}</span>
-          </label>
         </div>
+        <p v-else class="muted media-field-empty">Belum ada gambar galeri.</p>
         <div class="media-gallery-actions">
           <button class="ghost--sm" type="button" @click="addLibraryMedia">Pilih dari Media</button>
         </div>
-        <small class="muted">{{ prodMedia.length }} media · JPG/PNG/WEBP · tanda ★ = cover</small>
+        <small class="muted">{{ prodMedia.length }} media · tanda ★ = cover</small>
       </div>
       <div v-if="prodForm.id" class="field">
         <span>Varian</span>
