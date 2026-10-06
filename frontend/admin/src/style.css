@@ -1356,4 +1356,25 @@
     font-weight: 700;
     font-size: 0.8rem;
   }
+
+  .product-form {
+    max-width: 64rem;
+  }
+  .product-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    align-items: start;
+  }
+  .product-form-grid .span-2 {
+    grid-column: 1 / -1;
+  }
+  @media (max-width: 42rem) {
+    .product-form-grid {
+      grid-template-columns: 1fr;
+    }
+    .product-form-grid .span-2 {
+      grid-column: auto;
+    }
+  }
 }

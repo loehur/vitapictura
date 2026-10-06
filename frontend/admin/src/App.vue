@@ -689,80 +689,26 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
 
   <!-- Modal produk -->
   <div v-if="prodModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Form produk" @click.self="closeProduct">
-    <form class="modal-card" @submit.prevent="saveProduct">
+    <form class="modal-card modal-card--wide product-form" @submit.prevent="saveProduct">
       <div class="modal-head">
         <h3>{{ prodForm.id ? 'Edit produk' : 'Tambah produk' }}</h3>
         <button class="modal-x" type="button" aria-label="Tutup" @click="closeProduct">×</button>
       </div>
-      <label class="field"><span>Nama</span><input v-model="prodForm.name" required placeholder="Contoh: Cetak Foto" @input="onProductName"></label>
-      <label class="field"><span>Slug (opsional)</span><input v-model="prodForm.slug" placeholder="otomatis dari nama"></label>
-      <label class="field"><span>Kategori</span>
-        <select v-model="prodForm.category_id">
-          <option value="">— Tanpa kategori —</option>
-          <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
-        </select>
-      </label>
-      <label class="field"><span>Harga dasar (Rp)</span><input v-model.number="prodForm.base_price" type="number" min="0"></label>
-      <div class="field-row">
+      <div class="product-form-grid">
+        <label class="field span-2"><span>Nama</span><input v-model="prodForm.name" required placeholder="Contoh: Cetak Foto" @input="onProductName"></label>
+        <label class="field"><span>Slug (opsional)</span><input v-model="prodForm.slug" placeholder="otomatis dari nama"></label>
+        <label class="field"><span>Kategori</span>
+          <select v-model="prodForm.category_id">
+            <option value="">— Tanpa kategori —</option>
+            <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+          </select>
+        </label>
+        <label class="field"><span>Harga dasar (Rp)</span><input v-model.number="prodForm.base_price" type="number" min="0"></label>
         <label class="field"><span>Berat (gram)</span><input v-model.number="prodForm.weight_grams" type="number" min="0"></label>
         <label class="field"><span>Populer</span><input v-model.number="prodForm.popularity" type="number" min="0"></label>
-      </div>
-      <div class="field-row field-row--3">
         <label class="field"><span>Panjang (mm)</span><input v-model="prodForm.length_mm" type="number" min="0"></label>
         <label class="field"><span>Lebar (mm)</span><input v-model="prodForm.width_mm" type="number" min="0"></label>
         <label class="field"><span>Tinggi (mm)</span><input v-model="prodForm.height_mm" type="number" min="0"></label>
-      </div>
-      <div class="field">
-        <span>Gambar utama</span>
-        <div v-if="prodForm.cover_image_url" class="media-field-preview"><img :src="mediaUrl(prodForm.cover_image_url)" alt="Pratinjau gambar utama"></div>
-        <p v-else class="muted media-field-empty">Belum ada gambar utama. Pilih dari Media.</p>
-        <div class="media-gallery-actions">
-          <button class="ghost--sm" type="button" @click="openMediaPicker('main')">{{ prodForm.cover_image_url ? 'Ganti gambar' : 'Pilih dari Media' }}</button>
-          <button v-if="prodForm.cover_image_url" class="ghost--sm" type="button" @click="prodForm.cover_image_url = ''">Hapus</button>
-        </div>
-      </div>
-      <div v-if="prodForm.id" class="field">
-        <span>Galeri media</span>
-        <div v-if="prodMedia.length" class="media-grid">
-          <div v-for="m in prodMedia" :key="m.id" class="media-item" :class="{ 'is-cover': m.url === prodForm.cover_image_url }">
-            <img :src="mediaUrl(m.url)" alt="">
-            <div class="media-tools">
-              <button type="button" class="media-btn" :disabled="m.url === prodForm.cover_image_url" title="Jadikan cover" @click="setCover(m)">★</button>
-              <button type="button" class="media-btn" title="Naik" @click="moveMedia(m, -1)">↑</button>
-              <button type="button" class="media-btn" title="Turun" @click="moveMedia(m, 1)">↓</button>
-              <button type="button" class="media-btn media-btn--danger" title="Hapus" @click="removeMedia(m)">×</button>
-            </div>
-          </div>
-        </div>
-        <p v-else class="muted media-field-empty">Belum ada gambar galeri.</p>
-        <div class="media-gallery-actions">
-          <button class="ghost--sm" type="button" @click="addLibraryMedia">Pilih dari Media</button>
-        </div>
-        <small class="muted">{{ prodMedia.length }} media · tanda ★ = cover</small>
-      </div>
-      <fieldset class="product-files">
-        <legend>File Mal / Template</legend>
-        <label class="check"><input v-model="prodForm.perlu_file" type="checkbox"> Produk memerlukan file dari pelanggan (pengiriman file)</label>
-        <p class="muted">File mal/template yang bisa diunduh pelanggan (opsional). Pilih dari Media.</p>
-        <div v-if="prodForm.mal.length" class="mal-list">
-          <div v-for="(item, i) in prodForm.mal" :key="`${item.url}-${i}`" class="mal-item">
-            <span class="mal-item__name">{{ item.name }}</span>
-            <a class="mal-item__link" :href="mediaUrl(item.url)" target="_blank" rel="noopener">Buka</a>
-            <button class="mal-item__remove" type="button" @click="prodForm.mal.splice(i, 1)">Hapus</button>
-          </div>
-        </div>
-        <p v-else class="muted">Belum ada file mal.</p>
-        <div class="media-gallery-actions">
-          <button class="ghost--sm" type="button" @click="openMediaPicker('mal')">Tambah dari Media</button>
-        </div>
-      </fieldset>
-      <div v-if="prodForm.id" class="field">
-        <span>Varian</span>
-        <button class="ghost--sm variant-open" type="button" @click="openVariants">Kelola varian (grup &amp; nilai)</button>
-      </div>
-      <label class="field"><span>Deskripsi singkat</span><input v-model="prodForm.short_description"></label>
-      <label class="field"><span>Deskripsi</span><textarea v-model="prodForm.description" rows="3"></textarea></label>
-      <div class="field-row">
         <label class="field"><span>Status</span>
           <select v-model="prodForm.status">
             <option value="published">Published</option>
@@ -771,6 +717,56 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           </select>
         </label>
         <label class="check check--end"><input v-model="prodForm.is_featured" type="checkbox"> Unggulan</label>
+        <label class="field span-2"><span>Deskripsi singkat</span><input v-model="prodForm.short_description"></label>
+        <label class="field span-2"><span>Deskripsi</span><textarea v-model="prodForm.description" rows="3"></textarea></label>
+        <div class="field span-2">
+          <span>Gambar utama</span>
+          <div v-if="prodForm.cover_image_url" class="media-field-preview"><img :src="mediaUrl(prodForm.cover_image_url)" alt="Pratinjau gambar utama"></div>
+          <p v-else class="muted media-field-empty">Belum ada gambar utama. Pilih dari Media.</p>
+          <div class="media-gallery-actions">
+            <button class="ghost--sm" type="button" @click="openMediaPicker('main')">{{ prodForm.cover_image_url ? 'Ganti gambar' : 'Pilih dari Media' }}</button>
+            <button v-if="prodForm.cover_image_url" class="ghost--sm" type="button" @click="prodForm.cover_image_url = ''">Hapus</button>
+          </div>
+        </div>
+        <div v-if="prodForm.id" class="field span-2">
+          <span>Galeri media</span>
+          <div v-if="prodMedia.length" class="media-grid">
+            <div v-for="m in prodMedia" :key="m.id" class="media-item" :class="{ 'is-cover': m.url === prodForm.cover_image_url }">
+              <img :src="mediaUrl(m.url)" alt="">
+              <div class="media-tools">
+                <button type="button" class="media-btn" :disabled="m.url === prodForm.cover_image_url" title="Jadikan cover" @click="setCover(m)">★</button>
+                <button type="button" class="media-btn" title="Naik" @click="moveMedia(m, -1)">↑</button>
+                <button type="button" class="media-btn" title="Turun" @click="moveMedia(m, 1)">↓</button>
+                <button type="button" class="media-btn media-btn--danger" title="Hapus" @click="removeMedia(m)">×</button>
+              </div>
+            </div>
+          </div>
+          <p v-else class="muted media-field-empty">Belum ada gambar galeri.</p>
+          <div class="media-gallery-actions">
+            <button class="ghost--sm" type="button" @click="addLibraryMedia">Pilih dari Media</button>
+          </div>
+          <small class="muted">{{ prodMedia.length }} media · tanda ★ = cover</small>
+        </div>
+        <fieldset class="product-files span-2">
+          <legend>File Mal / Template</legend>
+          <label class="check"><input v-model="prodForm.perlu_file" type="checkbox"> Produk memerlukan file dari pelanggan (pengiriman file)</label>
+          <p class="muted">File mal/template yang bisa diunduh pelanggan (opsional). Pilih dari Media.</p>
+          <div v-if="prodForm.mal.length" class="mal-list">
+            <div v-for="(item, i) in prodForm.mal" :key="`${item.url}-${i}`" class="mal-item">
+              <span class="mal-item__name">{{ item.name }}</span>
+              <a class="mal-item__link" :href="mediaUrl(item.url)" target="_blank" rel="noopener">Buka</a>
+              <button class="mal-item__remove" type="button" @click="prodForm.mal.splice(i, 1)">Hapus</button>
+            </div>
+          </div>
+          <p v-else class="muted">Belum ada file mal.</p>
+          <div class="media-gallery-actions">
+            <button class="ghost--sm" type="button" @click="openMediaPicker('mal')">Tambah dari Media</button>
+          </div>
+        </fieldset>
+        <div v-if="prodForm.id" class="field span-2">
+          <span>Varian</span>
+          <button class="ghost--sm variant-open" type="button" @click="openVariants">Kelola varian (grup &amp; nilai)</button>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="ghost--sm" type="button" @click="closeProduct">Batal</button>
