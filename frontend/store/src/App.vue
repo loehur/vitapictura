@@ -451,6 +451,11 @@ function goHome() { return navigate('home') }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
+async function logoutCustomer() {
+  try { await post('/Customer/Auth/logout') } catch (e) {}
+  customer.value = null; cart.value = { items: [], total: 0 }; addresses.value = []
+  await navigate('home'); flash('Kamu telah keluar dari akun.')
+}
 // ---- Checkout ----
 async function loadCheckoutView() {
   if (!requireCustomer()) return false
@@ -532,6 +537,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
           <span class="account-name">{{ customer ? customer.name : 'Masuk' }}</span>
         </button>
+        <button v-if="customer" class="nav-link nav-link--logout" type="button" @click="logoutCustomer">Keluar</button>
       </nav>
       <button class="mobile-cart" type="button" aria-label="Keranjang" @click="openCart">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
@@ -671,6 +677,18 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <button class="link-danger" type="button" @click="removeAddress(item)">Hapus</button>
         </div>
       </article>
+
+      <div class="account-panel">
+        <div class="account-panel__info">
+          <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
+          <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
+          <div class="account-panel__text">
+            <strong>{{ customer ? customer.name : 'Akun' }}</strong>
+            <small>{{ customer ? customer.email : '' }}</small>
+          </div>
+        </div>
+        <button class="link-danger" type="button" @click="logoutCustomer">Keluar</button>
+      </div>
 
       <div v-show="addressModalOpen" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Tambah lokasi" @click.self="closeAddressModal">
       <div class="modal-card">

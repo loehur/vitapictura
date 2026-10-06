@@ -156,6 +156,12 @@
   .nav-link:hover {
     background: var(--color-brand-100);
   }
+  .nav-link--logout {
+    color: var(--color-danger);
+  }
+  .nav-link--logout:hover {
+    background: rgba(180, 35, 24, 0.08);
+  }
 
   .badge {
     display: inline-grid;
@@ -675,6 +681,38 @@
     border-radius: 999px;
     background: var(--color-brand-100);
     color: var(--color-brand-700);
+  }
+
+  .account-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding: 1rem;
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-soft);
+  }
+  .account-panel__info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .account-panel__text {
+    display: grid;
+    min-width: 0;
+  }
+  .account-panel__text strong,
+  .account-panel__text small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .account-panel__text small {
+    color: var(--color-muted);
+    font-size: 0.8rem;
   }
 
   .address-form {
