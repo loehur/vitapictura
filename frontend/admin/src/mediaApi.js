@@ -59,6 +59,40 @@ export async function uploadMedia(files, folderId = 0) {
   return parseResponse(await request('/upload', { method: 'POST', body: form }))
 }
 
+/**
+ * Unggah satu file dengan progress (0..1). Memakai XHR agar progres byte terbaca.
+ */
+export function uploadMediaWithProgress(file, folderId = 0, onProgress) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData()
+    form.append('folder_id', String(folderId))
+    form.append('file', file)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE}/upload`)
+    xhr.withCredentials = true
+    xhr.setRequestHeader('Accept', 'application/json')
+
+    if (xhr.upload && typeof onProgress === 'function') {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total)
+      }
+    }
+
+    xhr.onload = () => {
+      let payload = null
+      try { payload = JSON.parse(xhr.responseText) } catch (e) { payload = null }
+      if (xhr.status >= 200 && xhr.status < 300 && payload?.status) {
+        resolve(payload.data)
+      } else {
+        reject(new Error(payload?.message || `Upload gagal (${xhr.status})`))
+      }
+    }
+    xhr.onerror = () => reject(new Error('Upload gagal — koneksi terputus'))
+    xhr.send(form)
+  })
+}
+
 export async function renameFile(id, name) {
   return parseResponse(await request('/rename_file', {
     method: 'POST',

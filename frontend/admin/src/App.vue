@@ -164,7 +164,7 @@ const prodSearch = ref('')
 const prodCategory = ref('')
 const prodStatus = ref('')
 const prodForm = ref(emptyProduct())
-function emptyProduct() { return { id: null, name: '', slug: '', category_id: '', short_description: '', description: '', base_price: 0, weight_grams: 0, length_mm: '', width_mm: '', height_mm: '', cover_image_url: '', is_featured: false, popularity: 0, status: 'published', perlu_file: false, mal: [] } }
+function emptyProduct() { return { id: null, name: '', slug: '', category_id: '', short_description: '', description: '', base_price: 0, weight_grams: 0, length_mm: '', width_mm: '', height_mm: '', cover_image_url: '', is_featured: false, status: 'published', perlu_file: false, mal: [] } }
 async function loadProducts() { prodLoading.value = true; try { if (!categories.value.length) { try { categories.value = (await api('Categories/index')).items || [] } catch (e) {} } products.value = (await api('Products/index')).items || [] } catch (e) { error.value = e.message } finally { prodLoading.value = false } }
 const filteredProducts = computed(() => {
   const q = prodSearch.value.trim().toLowerCase()
@@ -175,7 +175,7 @@ const filteredProducts = computed(() => {
     return mq && mc && ms
   })
 })
-function mapProduct(p) { return { id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? '', short_description: p.short_description || '', description: p.description || '', base_price: Number(p.base_price) || 0, weight_grams: Number(p.weight_grams) || 0, length_mm: p.length_mm ?? '', width_mm: p.width_mm ?? '', height_mm: p.height_mm ?? '', cover_image_url: p.cover_image_url || '', is_featured: !!p.is_featured, popularity: Number(p.popularity) || 0, status: p.status, perlu_file: !!p.perlu_file, mal: Array.isArray(p.mal) ? p.mal : [] } }
+function mapProduct(p) { return { id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? '', short_description: p.short_description || '', description: p.description || '', base_price: Number(p.base_price) || 0, weight_grams: Number(p.weight_grams) || 0, length_mm: p.length_mm ?? '', width_mm: p.width_mm ?? '', height_mm: p.height_mm ?? '', cover_image_url: p.cover_image_url || '', is_featured: !!p.is_featured, status: p.status, perlu_file: !!p.perlu_file, mal: Array.isArray(p.mal) ? p.mal : [] } }
 async function openProduct(row) {
   if (row && row.id) {
     try { prodForm.value = mapProduct(await api(`Products/show/${row.id}`)) } catch (e) { error.value = e.message; return }
@@ -723,7 +723,6 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </label>
         <label class="field"><span>Harga dasar (Rp)</span><input v-model.number="prodForm.base_price" type="number" min="0"></label>
         <label class="field"><span>Berat (gram)</span><input v-model.number="prodForm.weight_grams" type="number" min="0"></label>
-        <label class="field"><span>Populer</span><input v-model.number="prodForm.popularity" type="number" min="0"></label>
         <label class="field"><span>Panjang (mm)</span><input v-model="prodForm.length_mm" type="number" min="0"></label>
         <label class="field"><span>Lebar (mm)</span><input v-model="prodForm.width_mm" type="number" min="0"></label>
         <label class="field"><span>Tinggi (mm)</span><input v-model="prodForm.height_mm" type="number" min="0"></label>

@@ -7,7 +7,7 @@ import {
   deleteFolder,
   renameFile,
   renameFolder,
-  uploadMedia,
+  uploadMediaWithProgress,
 } from './mediaApi'
 
 const folderId = ref(0)
@@ -20,13 +20,35 @@ const error = ref('')
 const notice = ref('')
 const selected = ref(null)
 const viewMode = ref('grid')
+
+// ---- Upload modal ----
+const uploadOpen = ref(false)
+const queue = ref([])
+const dragOver = ref(false)
 const fileInput = ref(null)
+let seq = 0
 
 const isEmpty = computed(() => !loading.value && folders.value.length === 0 && files.value.length === 0)
+const currentFolderName = computed(() => breadcrumb.value[breadcrumb.value.length - 1]?.name || 'Media')
+const pendingCount = computed(() => queue.value.filter((i) => i.status === 'queued' || i.status === 'error').length)
+const doneCount = computed(() => queue.value.filter((i) => i.status === 'done').length)
+const overallProgress = computed(() => {
+  if (!queue.value.length) return 0
+  const total = queue.value.length
+  const sum = queue.value.reduce((n, i) => n + (i.status === 'done' ? 1 : (i.status === 'uploading' ? i.progress : 0)), 0)
+  return Math.round((sum / total) * 100)
+})
 
 function ext(name) {
   const part = String(name || '').split('.').pop()
   return part && part !== name ? part.toUpperCase() : 'FILE'
+}
+
+function formatBytes(bytes) {
+  const b = Number(bytes) || 0
+  if (b < 1024) return `${b} B`
+  if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / 1048576).toFixed(1)} MB`
 }
 
 function toast(message, isError = false) {
@@ -97,22 +119,89 @@ async function onDeleteFolder(folder) {
   }
 }
 
-function triggerUpload() { fileInput.value?.click() }
+// ---- Upload queue ----
+function addFiles(list) {
+  const items = Array.from(list || [])
+  items.forEach((file) => {
+    queue.value.push({
+      id: ++seq,
+      file,
+      name: file.name,
+      sizeLabel: formatBytes(file.size),
+      previewUrl: file.type && file.type.startsWith('image/') ? URL.createObjectURL(file) : '',
+      status: 'queued',
+      progress: 0,
+      error: '',
+    })
+  })
+}
 
-async function onUploadChange(event) {
-  const list = event.target.files
-  if (!list?.length) return
+function pickFiles() {
+  if (uploading.value) return
+  fileInput.value?.click()
+}
+
+function onPickFiles(event) {
+  addFiles(event.target.files)
+  event.target.value = ''
+}
+
+function onDrop(event) {
+  dragOver.value = false
+  if (uploading.value) return
+  addFiles(event.dataTransfer?.files)
+}
+
+function removeQueued(item) {
+  if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+  queue.value = queue.value.filter((i) => i.id !== item.id)
+}
+
+function openUpload() {
+  if (uploading.value) return
+  queue.value.forEach((i) => { if (i.previewUrl) URL.revokeObjectURL(i.previewUrl) })
+  queue.value = []
+  dragOver.value = false
+  uploadOpen.value = true
+}
+
+function closeUpload() {
+  if (uploading.value) return
+  queue.value.forEach((i) => { if (i.previewUrl) URL.revokeObjectURL(i.previewUrl) })
+  queue.value = []
+  uploadOpen.value = false
+}
+
+async function startUpload() {
+  const pending = queue.value.filter((i) => i.status === 'queued' || i.status === 'error')
+  if (!pending.length) return
+
   uploading.value = true
-  try {
-    const result = await uploadMedia(list, folderId.value)
-    toast(`${result.count || 1} file berhasil diunggah`)
-    await load()
-  } catch (e) {
-    toast(e.message || 'Upload gagal', true)
-  } finally {
-    uploading.value = false
-    event.target.value = ''
+  let ok = 0
+  let fail = 0
+
+  for (const item of pending) {
+    item.status = 'uploading'
+    item.progress = 0
+    item.error = ''
+    try {
+      await uploadMediaWithProgress(item.file, folderId.value, (p) => { item.progress = p })
+      item.status = 'done'
+      item.progress = 1
+      ok++
+    } catch (e) {
+      item.status = 'error'
+      item.error = e.message || 'Gagal'
+      fail++
+    }
   }
+
+  uploading.value = false
+  await load()
+
+  if (ok && !fail) toast(`${ok} file berhasil diunggah`)
+  else if (ok && fail) toast(`${ok} berhasil, ${fail} gagal`, true)
+  else if (fail) toast(`${fail} file gagal diunggah`, true)
 }
 
 function selectFile(file) { selected.value = file }
@@ -180,8 +269,7 @@ onMounted(() => load(0))
             <button type="button" :class="{ 'is-active': viewMode === 'list' }" @click="viewMode = 'list'">List</button>
           </div>
           <button type="button" class="ghost--sm" @click="onCreateFolder">+ Folder</button>
-          <button type="button" class="primary primary--sm" :disabled="uploading" @click="triggerUpload">{{ uploading ? 'Mengunggah…' : 'Upload' }}</button>
-          <input ref="fileInput" type="file" multiple accept="image/*,.pdf,.zip,.rar,.doc,.docx,.xls,.xlsx" hidden @change="onUploadChange">
+          <button type="button" class="primary primary--sm" @click="openUpload">Upload</button>
         </div>
       </div>
 
@@ -225,6 +313,7 @@ onMounted(() => load(0))
       </div>
     </section>
 
+    <!-- Modal Detail -->
     <div v-if="selected" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Detail media" @click.self="selected = null">
       <div class="modal-card">
         <div class="modal-head">
@@ -245,6 +334,67 @@ onMounted(() => load(0))
           <button class="ghost--sm" type="button" @click="copyUrl(selected)">Salin URL</button>
           <a class="ghost--sm" :href="selected.url" target="_blank" rel="noopener">Buka</a>
           <button class="link-danger" type="button" @click="onDeleteFile(selected)">Hapus</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Upload -->
+    <div v-if="uploadOpen" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Unggah media" @click.self="closeUpload">
+      <div class="modal-card media-upload">
+        <div class="modal-head">
+          <h3>Unggah Media</h3>
+          <button class="modal-x" type="button" aria-label="Tutup" :disabled="uploading" @click="closeUpload">×</button>
+        </div>
+
+        <div
+          class="upload-drop"
+          :class="{ 'is-drag': dragOver, 'is-busy': uploading }"
+          @click="pickFiles"
+          @dragover.prevent="dragOver = true"
+          @dragleave.prevent="dragOver = false"
+          @drop.prevent="onDrop"
+        >
+          <svg class="upload-drop__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <p class="upload-drop__title">Tarik &amp; lepas file di sini</p>
+          <p class="upload-drop__sub">atau klik untuk memilih · JPG, PNG, WEBP, GIF, PDF, ZIP, RAR, DOC, XLS</p>
+          <input ref="fileInput" type="file" multiple accept="image/*,.pdf,.zip,.rar,.doc,.docx,.xls,.xlsx" hidden @change="onPickFiles">
+        </div>
+
+        <p class="upload-dest muted">Tujuan: <strong>{{ currentFolderName }}</strong></p>
+
+        <div v-if="queue.length" class="upload-queue">
+          <div v-for="item in queue" :key="item.id" class="upload-item" :class="`is-${item.status}`">
+            <span class="upload-item__thumb">
+              <img v-if="item.previewUrl" :src="item.previewUrl" :alt="item.name">
+              <span v-else class="upload-item__ext">{{ ext(item.name) }}</span>
+            </span>
+            <span class="upload-item__meta">
+              <span class="upload-item__name" :title="item.name">{{ item.name }}</span>
+              <span class="upload-item__size">{{ item.sizeLabel }}</span>
+              <span v-if="item.status === 'uploading'" class="upload-item__bar"><span :style="{ width: Math.round(item.progress * 100) + '%' }"></span></span>
+              <span v-else-if="item.status === 'error'" class="upload-item__err">{{ item.error }}</span>
+            </span>
+            <span class="upload-item__state">
+              <span v-if="item.status === 'queued'" class="upload-badge">menunggu</span>
+              <span v-else-if="item.status === 'uploading'" class="upload-badge is-info">{{ Math.round(item.progress * 100) }}%</span>
+              <span v-else-if="item.status === 'done'" class="upload-badge is-ok">✓ selesai</span>
+              <span v-else class="upload-badge is-err">gagal</span>
+            </span>
+            <button v-if="!uploading" class="upload-item__remove" type="button" aria-label="Hapus dari daftar" @click="removeQueued(item)">×</button>
+          </div>
+        </div>
+        <p v-else class="muted upload-empty">Belum ada file dipilih.</p>
+
+        <div v-if="uploading" class="upload-overall">
+          <div class="upload-overall__bar"><span :style="{ width: overallProgress + '%' }"></span></div>
+          <span class="upload-overall__text">{{ doneCount }}/{{ queue.length }} · {{ overallProgress }}%</span>
+        </div>
+
+        <div class="modal-actions">
+          <button class="ghost--sm" type="button" :disabled="uploading" @click="closeUpload">{{ !uploading && doneCount ? 'Selesai' : 'Batal' }}</button>
+          <button class="primary" type="button" :disabled="uploading || !pendingCount" @click="startUpload">
+            {{ uploading ? 'Mengunggah…' : `Upload ${pendingCount} file` }}
+          </button>
         </div>
       </div>
     </div>
