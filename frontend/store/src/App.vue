@@ -57,6 +57,7 @@ const notice = ref('')
 const addingToCart = ref(false)
 const signingIn = ref(false)
 const loginOpen = ref(false)
+const profileOpen = ref(false)
 const googleReady = ref(false)
 const googleLoading = ref(false)
 const googleError = ref('')
@@ -446,16 +447,19 @@ async function applyRoute(route) {
     resetViews(); product.value = null; return true
   } catch (e) { error.value = e.message; return false }
 }
-async function navigate(name, slug) { const ok = await applyRoute({ name, slug }); if (ok) pushRoute(name, slug); window.scrollTo({ top: 0, behavior: 'smooth' }); return ok }
+async function navigate(name, slug) { profileOpen.value = false; const ok = await applyRoute({ name, slug }); if (ok) pushRoute(name, slug); window.scrollTo({ top: 0, behavior: 'smooth' }); return ok }
 function goHome() { return navigate('home') }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
 async function logoutCustomer() {
+  profileOpen.value = false
   try { await post('/Customer/Auth/logout') } catch (e) {}
   customer.value = null; cart.value = { items: [], total: 0 }; addresses.value = []
   await navigate('home'); flash('Kamu telah keluar dari akun.')
 }
+function toggleProfile() { if (!customer.value) { startGoogleLogin(); return } profileOpen.value = !profileOpen.value }
+function goAccount() { profileOpen.value = false; return openAddresses() }
 // ---- Checkout ----
 async function loadCheckoutView() {
   if (!requireCustomer()) return false
@@ -532,18 +536,33 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <button class="nav-link" type="button" @click="goHome">Katalog</button>
         <button class="nav-link" type="button" @click="openOrders">Pesanan</button>
         <button class="nav-link" type="button" @click="openCart">Keranjang<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
-        <button class="nav-link account" type="button" @click="customer ? openAddresses() : startGoogleLogin()">
-          <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
-          <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
-          <span class="account-name">{{ customer ? customer.name : 'Masuk' }}</span>
-        </button>
-        <button v-if="customer" class="nav-link nav-link--logout" type="button" @click="logoutCustomer">Keluar</button>
       </nav>
-      <button class="mobile-cart" type="button" aria-label="Keranjang" @click="openCart">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
-        <span v-if="cartCount" class="badge">{{ cartCount }}</span>
-      </button>
+      <div class="header-actions">
+        <div class="profile-menu">
+          <button class="nav-link account" type="button" :aria-haspopup="customer ? 'menu' : null" :aria-expanded="profileOpen" @click="toggleProfile">
+            <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
+            <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
+            <span class="account-name">{{ customer ? customer.name : 'Masuk' }}</span>
+            <svg v-if="customer" class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div v-if="profileOpen" class="profile-dropdown" role="menu">
+            <button class="profile-dropdown__item" type="button" role="menuitem" @click="goAccount">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+              <span>Lokasi</span>
+            </button>
+            <button class="profile-dropdown__item profile-dropdown__item--danger" type="button" role="menuitem" @click="logoutCustomer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+              <span>Keluar</span>
+            </button>
+          </div>
+        </div>
+        <button class="mobile-cart" type="button" aria-label="Keranjang" @click="openCart">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
+          <span v-if="cartCount" class="badge">{{ cartCount }}</span>
+        </button>
+      </div>
     </header>
+    <div v-if="profileOpen" class="profile-scrim" @click="profileOpen = false"></div>
     <div class="alerts" aria-live="polite">
       <div v-if="error" class="alert alert--error" role="alert">
         <span>{{ error }}</span>
@@ -677,18 +696,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <button class="link-danger" type="button" @click="removeAddress(item)">Hapus</button>
         </div>
       </article>
-
-      <div class="account-panel">
-        <div class="account-panel__info">
-          <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
-          <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
-          <div class="account-panel__text">
-            <strong>{{ customer ? customer.name : 'Akun' }}</strong>
-            <small>{{ customer ? customer.email : '' }}</small>
-          </div>
-        </div>
-        <button class="link-danger" type="button" @click="logoutCustomer">Keluar</button>
-      </div>
 
       <div v-show="addressModalOpen" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Tambah lokasi" @click.self="closeAddressModal">
       <div class="modal-card">
