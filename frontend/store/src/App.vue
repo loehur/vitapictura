@@ -72,7 +72,7 @@ const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'ID
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
 const customerFirstName = computed(() => (customer.value?.name || '').trim().split(/\s+/)[0] || 'Masuk')
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan')
-const displayProducts = computed(() => activeCategory.value ? allProducts.value.filter((p) => p.category?.slug === activeCategory.value) : catalog.value.featured)
+const displayProducts = computed(() => activeCategory.value ? allProducts.value.filter((p) => p.category?.slug === activeCategory.value) : allProducts.value)
 const gallery = computed(() => {
   if (!product.value) return []
   if (product.value.gallery?.length) return product.value.gallery
@@ -123,7 +123,7 @@ async function post(path, body) {
 }
 let flashTimer
 function flash(message) { notice.value = message; window.clearTimeout(flashTimer); flashTimer = window.setTimeout(() => { notice.value = '' }, 3500) }
-async function loadHome() { try { loading.value = true; catalog.value = await request('home'); allProducts.value = (await request('products?limit=48')).items } catch (e) { error.value = e.message } finally { loading.value = false } }
+async function loadHome() { try { loading.value = true; catalog.value = await request('home'); allProducts.value = (await request('products?limit=200')).items } catch (e) { error.value = e.message } finally { loading.value = false } }
 function waitForGoogle(timeout = 8000) {
   return new Promise((resolve) => {
     const started = Date.now()
@@ -801,6 +801,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <p class="category">{{ product.category.name }}</p>
           <h1>{{ product.name }}</h1>
           <p class="price">Mulai dari {{ rupiah.format(product.price) }}</p>
+          <p v-if="product.shortDescription" class="pd-shortdesc">{{ product.shortDescription }}</p>
 
           <div v-for="group in level1Groups" :key="group.id" class="pd-field">
             <label class="pd-label">{{ group.name }}</label>
@@ -865,6 +866,11 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </div>
         <div class="pd-tabbody" v-html="product.tabs[activeTab]?.html || ''"></div>
       </div>
+
+      <section v-if="product.description" class="pd-desc">
+        <h2>Deskripsi</h2>
+        <p class="pd-desc__body">{{ product.description }}</p>
+      </section>
 
       <div class="pd-bottom">
       <div class="pd-sticky">

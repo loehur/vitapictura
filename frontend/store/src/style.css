@@ -1467,6 +1467,7 @@
   .pd-thumb.is-active { border-color: var(--color-brand-600); }
   .pd-info { display: grid; gap: 0.6rem; min-width: 0; }
   .pd-info h1 { margin: 0; font-size: 1.6rem; overflow-wrap: anywhere; }
+  .pd-shortdesc { margin: 0; color: var(--color-muted); line-height: 1.5; }
   .pd-info .pd-field { display: grid; gap: 0.25rem; min-width: 0; margin: 0; }
   .pd-label { font-size: 0.85rem; font-weight: 700; color: var(--color-brand-800); }
   .pd-select,
@@ -1518,6 +1519,9 @@
   .pd-total span { font-size: 0.8rem; color: var(--color-muted); }
   .pd-total strong { font-size: 1.2rem; color: var(--color-brand-800); }
   .pd-tabs { margin-top: 1.5rem; }
+  .pd-desc { margin-top: 1.5rem; }
+  .pd-desc h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
+  .pd-desc__body { margin: 0; color: var(--color-ink); line-height: 1.6; white-space: pre-wrap; }
   .pd-tabnav { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid var(--color-line); }
   .pd-tabnav button {
     border: 0;

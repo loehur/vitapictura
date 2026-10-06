@@ -1244,6 +1244,37 @@
     background: var(--color-surface);
     text-align: left;
   }
+  .media-picker-file {
+    position: relative;
+  }
+  .media-picker-file.is-selected {
+    border-color: var(--color-brand-600);
+    box-shadow: 0 0 0 2px var(--color-brand-100);
+  }
+  .media-picker-file.is-selected::after {
+    content: '✓';
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    display: grid;
+    place-items: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 999px;
+    background: var(--color-brand-600);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+  }
+  .media-picker-hint {
+    margin: 0.4rem 0 0;
+    font-size: 0.82rem;
+  }
+  .media-picker-count {
+    margin-right: auto;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
   .media-picker-folder {
     place-items: center;
     color: var(--color-brand-600);

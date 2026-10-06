@@ -236,6 +236,28 @@ async function addLibraryMedia() {
   if (!prodForm.value.id) { error.value = 'Simpan produk dulu sebelum menambah galeri.'; return }
   openMediaPicker('gallery')
 }
+async function onMediaPickMany(files) {
+  pickerOpen.value = false
+  if (!Array.isArray(files) || !files.length) return
+  if (pickerMode.value === 'gallery') {
+    if (!prodForm.value.id) return
+    let added = 0
+    for (const file of files) {
+      try { await api(`Products/add-media/${prodForm.value.id}`, { media_id: file.id }); added++ } catch (e) { /* lewati yang gagal */ }
+    }
+    await loadMedia(prodForm.value.id)
+    flash(`${added} gambar ditambahkan ke galeri.`)
+  } else if (pickerMode.value === 'mal') {
+    let added = 0
+    for (const file of files) {
+      if (!prodForm.value.mal.some((m) => m.url === file.url)) {
+        prodForm.value.mal.push({ name: file.name, url: file.url })
+        added++
+      }
+    }
+    flash(`${added} file mal ditambahkan.`)
+  }
+}
 function gallerySuffix(key) { const k = String(key || '').trim(); if (!k || !/^m(_|$)/.test(k) || k === 'm') return ''; return k.replace(/^m_?/, '') }
 const gallerySuffixOptions = computed(() => {
   const seen = new Set()
@@ -1065,5 +1087,5 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
     </form>
   </div>
 
-  <MediaPicker v-if="pickerOpen" :mode="pickerMode" @select="onMediaPick" @close="pickerOpen = false" />
+    <MediaPicker v-if="pickerOpen" :mode="pickerMode" @select="onMediaPick" @select-many="onMediaPickMany" @close="pickerOpen = false" />
 </template>
