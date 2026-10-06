@@ -70,6 +70,7 @@ function popModalHistory() { if (!modalHistory) return; modalHistory = false; su
 function closeLoginModal() { loginOpen.value = false; popModalHistory() }
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
+const customerFirstName = computed(() => (customer.value?.name || '').trim().split(/\s+/)[0] || 'Masuk')
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan populer')
 const displayProducts = computed(() => activeCategory.value ? allProducts.value.filter((p) => p.category?.slug === activeCategory.value) : catalog.value.featured)
 const gallery = computed(() => {
@@ -542,7 +543,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <button class="nav-link account" type="button" :aria-haspopup="customer ? 'menu' : null" :aria-expanded="profileOpen" @click="toggleProfile">
             <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
             <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
-            <span class="account-name">{{ customer ? customer.name : 'Masuk' }}</span>
+            <span class="account-name">{{ customerFirstName }}</span>
             <svg v-if="customer" class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
           </button>
           <div v-if="profileOpen" class="profile-dropdown" role="menu">

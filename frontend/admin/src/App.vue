@@ -8,6 +8,11 @@ const form = ref({ email: '', password: '' })
 const navOpen = ref(false)
 const busy = ref(false)
 const view = ref('orders')
+const profileOpen = ref(false)
+const pwModal = ref(false)
+const pwForm = ref({ current_password: '', new_password: '', confirm_password: '' })
+const pwBusy = ref(false)
+const pwError = ref('')
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const STOREFRONT = 'https://vpictura.com'
 function mediaUrl(url) { if (!url) return ''; return /^https?:/i.test(url) ? url : `${STOREFRONT}${url}` }
@@ -22,6 +27,7 @@ const navItems = [
 ]
 const titles = { dashboard: 'Dashboard', orders: 'Pesanan', categories: 'Kategori', products: 'Produk', customers: 'Pelanggan', uploads: 'Upload Desain', settings: 'Pengaturan' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
+const firstName = computed(() => (user.value?.name || '').trim().split(/\s+/)[0] || '')
 watch([user, currentTitle], ([u, t]) => { document.title = u ? `${t} · Vita Pictura Admin` : 'Masuk · Vita Pictura Admin' }, { immediate: true })
 
 async function api(path, body) {
@@ -40,7 +46,18 @@ async function login() {
   catch (e) { error.value = e.message }
   finally { busy.value = false }
 }
-async function logout() { try { await api('Auth/logout', {}) } catch {} user.value = null; navOpen.value = false }
+async function logout() { profileOpen.value = false; try { await api('Auth/logout', {}) } catch {} user.value = null; navOpen.value = false }
+function openChangePassword() { profileOpen.value = false; pwForm.value = { current_password: '', new_password: '', confirm_password: '' }; pwError.value = ''; pwModal.value = true }
+function closeChangePassword() { pwModal.value = false }
+async function submitChangePassword() {
+  pwError.value = ''
+  if (pwForm.value.new_password.length < 8) { pwError.value = 'Password baru minimal 8 karakter.'; return }
+  if (pwForm.value.new_password !== pwForm.value.confirm_password) { pwError.value = 'Konfirmasi password tidak cocok.'; return }
+  pwBusy.value = true
+  try { await api('Auth/changePassword', pwForm.value); pwModal.value = false; flash('Password berhasil diubah.') }
+  catch (e) { pwError.value = e.message }
+  finally { pwBusy.value = false }
+}
 function switchView(key) { view.value = key; navOpen.value = false; loadView(key) }
 function loadView(key) { if (key === 'dashboard') return loadDashboard(); if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers(); if (key === 'uploads') return loadUploads(); if (key === 'settings') return loadSettings() }
 
@@ -324,15 +341,28 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         <button v-for="item in navItems" :key="item.key" class="nav-item" type="button" :class="{ 'is-active': view === item.key }" :aria-current="view === item.key ? 'page' : null" @click="switchView(item.key)">{{ item.label }}</button>
       </nav>
       <div class="sidebar__user">
-        <span class="avatar" aria-hidden="true">{{ user.name.charAt(0).toUpperCase() }}</span>
-        <div>
-          <strong>{{ user.name }}</strong>
-          <small>{{ user.role }}</small>
+        <button class="profile-trigger" type="button" :aria-expanded="profileOpen" aria-haspopup="menu" @click="profileOpen = !profileOpen">
+          <span class="avatar" aria-hidden="true">{{ user.name.charAt(0).toUpperCase() }}</span>
+          <span class="profile-trigger__meta">
+            <strong>{{ firstName }}</strong>
+            <small>{{ user.role }}</small>
+          </span>
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div v-if="profileOpen" class="profile-dropdown" role="menu">
+          <button class="profile-dropdown__item" type="button" role="menuitem" @click="openChangePassword">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Ganti Password</span>
+          </button>
+          <button class="profile-dropdown__item profile-dropdown__item--danger" type="button" role="menuitem" @click="logout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+            <span>Keluar</span>
+          </button>
         </div>
-        <button class="link" type="button" @click="logout">Keluar</button>
       </div>
     </aside>
     <div v-if="navOpen" class="scrim" @click="navOpen = false"></div>
+    <div v-if="profileOpen" class="profile-scrim" @click="profileOpen = false"></div>
 
     <div id="main" tabindex="-1" class="admin-main">
       <header class="topbar">
@@ -956,6 +986,17 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           <button class="link-danger" type="button" :disabled="custSaving" @click="toggleCustomerStatus">{{ custDetail.status === 'blocked' ? 'Aktifkan kembali' : 'Blokir pelanggan' }}</button>
         </div>
       </template>
+    </div>
+
+    <div v-if="pwModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Ganti password" @click.self="closeChangePassword">
+      <form class="modal-card" @submit.prevent="submitChangePassword">
+        <div class="modal-head"><h3>Ganti password</h3><button class="modal-x" type="button" aria-label="Tutup" @click="closeChangePassword">×</button></div>
+        <label class="field"><span>Password saat ini</span><input v-model="pwForm.current_password" type="password" required autocomplete="current-password"></label>
+        <label class="field"><span>Password baru</span><input v-model="pwForm.new_password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label class="field"><span>Konfirmasi password baru</span><input v-model="pwForm.confirm_password" type="password" required autocomplete="new-password"></label>
+        <p v-if="pwError" class="error">{{ pwError }}</p>
+        <div class="modal-actions"><button class="ghost--sm" type="button" @click="closeChangePassword">Batal</button><button class="primary" type="submit" :disabled="pwBusy">{{ pwBusy ? 'Menyimpan…' : 'Simpan' }}</button></div>
+      </form>
     </div>
   </div>
 </template>
