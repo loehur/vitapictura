@@ -208,6 +208,12 @@ async function loadMedia(pid) { try { prodMedia.value = (await api(`Products/med
 async function removeMedia(item) { if (!window.confirm('Hapus media ini?')) return; try { await api(`Products/remove-media/${item.id}`, {}); await loadMedia(prodForm.value.id); flash('Media dihapus.') } catch (e) { error.value = e.message } }
 async function moveMedia(item, dir) { const list = [...prodMedia.value]; const i = list.findIndex((m) => m.id === item.id); const j = i + dir; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; prodMedia.value = list; try { await api(`Products/reorder-media/${prodForm.value.id}`, { order: list.map((m) => m.id) }) } catch (e) { error.value = e.message } }
 async function setCover(item) { try { const d = await api(`Products/set-cover/${prodForm.value.id}`, { media_id: item.id }); prodForm.value.cover_image_url = d.coverImage; flash('Cover diperbarui.') } catch (e) { error.value = e.message } }
+async function setMediaSuffix(item) {
+  const current = item.image_suffix || gallerySuffix(item.image_key)
+  const suffix = window.prompt('Suffix gambar varian (kosongkan = gambar utama "m").\nContoh: merah, full_logo', current || '')
+  if (suffix === null) return
+  try { await api(`Products/update-media/${item.id}`, { image_suffix: suffix.trim() }); await loadMedia(prodForm.value.id); flash('Suffix gambar disimpan.') } catch (e) { error.value = e.message }
+}
 
 // ---- Media picker (dari library) ----
 const pickerOpen = ref(false)
@@ -230,6 +236,18 @@ async function addLibraryMedia() {
   if (!prodForm.value.id) { error.value = 'Simpan produk dulu sebelum menambah galeri.'; return }
   openMediaPicker('gallery')
 }
+function gallerySuffix(key) { const k = String(key || '').trim(); if (!k || !/^m(_|$)/.test(k) || k === 'm') return ''; return k.replace(/^m_?/, '') }
+const gallerySuffixOptions = computed(() => {
+  const seen = new Set()
+  const out = []
+  for (const m of prodMedia.value) {
+    const suffix = String(m.image_suffix || gallerySuffix(m.image_key) || '').trim()
+    if (!suffix || seen.has(suffix)) continue
+    seen.add(suffix)
+    out.push({ suffix, key: m.image_key, url: m.url })
+  }
+  return out
+})
 
 // ---- Variants (option groups & values) ----
 const variantModal = ref(false)
@@ -735,6 +753,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
               <img :src="mediaUrl(m.url)" alt="">
               <div class="media-tools">
                 <button type="button" class="media-btn" :disabled="m.url === prodForm.cover_image_url" title="Jadikan cover" @click="setCover(m)">★</button>
+                <button type="button" class="media-btn" title="Atur suffix gambar varian" @click="setMediaSuffix(m)">S</button>
                 <button type="button" class="media-btn" title="Naik" @click="moveMedia(m, -1)">↑</button>
                 <button type="button" class="media-btn" title="Turun" @click="moveMedia(m, 1)">↓</button>
                 <button type="button" class="media-btn media-btn--danger" title="Hapus" @click="removeMedia(m)">×</button>
@@ -875,10 +894,22 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
     <form class="modal-card" @submit.prevent="saveValue">
       <div class="modal-head"><h3>{{ valueForm.id ? 'Edit nilai' : 'Tambah nilai' }}</h3><button class="modal-x" type="button" aria-label="Tutup" @click="valueModal = false">×</button></div>
       <label class="field"><span>Nama nilai</span><input v-model="valueForm.name" required placeholder="Contoh: 10x15cm"></label>
-      <div class="field-row">
-        <label class="field"><span>Harga tambahan (Rp)</span><input v-model.number="valueForm.price_delta" type="number"></label>
-        <label class="field"><span>Image suffix</span><input v-model="valueForm.image_suffix" placeholder="mis: full_logo"></label>
+      <label class="field"><span>Harga tambahan (Rp)</span><input v-model.number="valueForm.price_delta" type="number"></label>
+      <div class="field">
+        <span>Gambar varian (pilih dari galeri produk)</span>
+        <div class="suffix-picker">
+          <button type="button" class="suffix-option" :class="{ 'is-active': !valueForm.image_suffix }" @click="valueForm.image_suffix = ''">
+            <span class="suffix-option__thumb suffix-option__thumb--none">—</span>
+            <span class="suffix-option__label">Tanpa</span>
+          </button>
+          <button v-for="opt in gallerySuffixOptions" :key="opt.suffix" type="button" class="suffix-option" :class="{ 'is-active': valueForm.image_suffix === opt.suffix }" :title="opt.key" @click="valueForm.image_suffix = opt.suffix">
+            <img class="suffix-option__thumb" :src="mediaUrl(opt.url)" :alt="opt.suffix">
+            <span class="suffix-option__label">{{ opt.suffix }}</span>
+          </button>
+        </div>
+        <small v-if="!gallerySuffixOptions.length" class="muted">Belum ada gambar galeri ber-suffix. Atur lewat tombol "S" pada Galeri media produk.</small>
       </div>
+      <label class="field"><span>Image suffix (manual)</span><input v-model="valueForm.image_suffix" placeholder="mis: full_logo"></label>
       <div class="field-row field-row--3">
         <label class="field"><span>Berat (g)</span><input v-model.number="valueForm.weight_delta_grams" type="number"></label>
         <label class="field"><span>Panjang (mm)</span><input v-model.number="valueForm.length_delta_mm" type="number"></label>
