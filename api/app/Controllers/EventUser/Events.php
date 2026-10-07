@@ -44,6 +44,17 @@ class Events extends Controller {
   try{$res=EventService::storeCover($f['tmp_name'],$mime);}catch(\Throwable $e){$this->error($e->getMessage(),422);}
   $this->success(['url'=>$res['coverUrl']],'Cover diunggah');
  }
+ public function update_cover($id=null):void{
+  $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$id=(int)$id;
+  $ev=$this->db()->query('SELECT cover_image_url FROM vp_events WHERE id=? AND customer_id=? LIMIT 1',[$id,(int)$u['id']])->row_array();
+  if(!$ev)$this->error('Event tidak ditemukan',404);
+  $b=$this->getBody();$cov=trim((string)($b['cover_image_url']??''));
+  $cover=($cov!==''&&strpos(EventService::coverKeyFromUrl($cov),'events/')===0)?$cov:null;
+  $old=trim((string)($ev['cover_image_url']??''));
+  if($old!==''&&$old!==(string)$cover)EventService::deleteCoverFile($old);
+  $this->db()->update('vp_events',['cover_image_url'=>$cover,'updated_at'=>$GLOBALS['now']??date('Y-m-d H:i:s')],['id'=>$id]);
+  $this->success(['cover_image_url'=>$cover],'Cover diperbarui');
+ }
  public function remove($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$id=(int)$id;
   $own=$this->db()->query('SELECT id FROM vp_events WHERE id=? AND customer_id=? LIMIT 1',[$id,(int)$u['id']])->row_array();

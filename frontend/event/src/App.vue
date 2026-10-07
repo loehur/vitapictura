@@ -95,14 +95,19 @@ async function removeEvent(ev) { if (!window.confirm(`Hapus event "${ev.name}"?`
 // ---- Cover upload ----
 const coverInput = ref(null); const coverBusy = ref(false)
 function pickCover() { coverInput.value?.click() }
-function removeCover() { if (editor.value) editor.value.cover_image_url = '' }
+function removeCover() { if (!editor.value) return; editor.value.cover_image_url = ''; if (editor.value.id) post(`/EventUser/Events/update_cover/${editor.value.id}`, { cover_image_url: '' }).then(() => flash('Cover dihapus.')).catch((e) => flash(e.message, true)) }
 async function onCoverFile(e) {
   const f = e.target.files && e.target.files[0]; if (coverInput.value) coverInput.value.value = ''
   if (!f) return
   if (!/^image\//.test(f.type)) { flash('File harus berupa gambar.', true); return }
   if (f.size > 5 * 1024 * 1024) { flash('Ukuran file maksimal 5MB.', true); return }
   coverBusy.value = true
-  try { const d = await uploadCover(f); if (editor.value) editor.value.cover_image_url = d.url; flash('Cover berhasil diunggah.') }
+  try {
+    const d = await uploadCover(f)
+    if (editor.value) editor.value.cover_image_url = d.url
+    if (editor.value?.id) { await post(`/EventUser/Events/update_cover/${editor.value.id}`, { cover_image_url: d.url }); flash('Cover diunggah & langsung tersimpan.') }
+    else { flash('Cover diunggah. Simpan event untuk menerapkannya.') }
+  }
   catch (err) { flash(err.message, true) }
   finally { coverBusy.value = false }
 }

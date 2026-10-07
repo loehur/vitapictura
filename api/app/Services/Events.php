@@ -310,6 +310,15 @@ class Events
         return ltrim($url, '/');
     }
 
+    /** Hapus file cover publik bila menunjuk ke folder covers event. */
+    public static function deleteCoverFile(string $url): void
+    {
+        $key = self::coverKeyFromUrl($url);
+        if (strpos($key, 'events/covers/') === 0) {
+            self::safeUnlink(self::publicRoot() . '/' . $key);
+        }
+    }
+
     /** Simpan file original (format sumber apa adanya). */
     public static function storeOriginal(string $tmpPath, string $mime, int $eventId): array
     {
