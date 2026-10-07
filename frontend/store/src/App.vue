@@ -8,6 +8,7 @@ const activeCategory = ref(null)
 const product = ref(null)
 const loading = ref(true)
 const error = ref('')
+const catalogError = ref('')
 const customer = ref(null)
 const googleClientId = ref('')
 const waNumber = ref('6285210692884')
@@ -129,7 +130,7 @@ async function post(path, body) {
 }
 let flashTimer
 function flash(message) { notice.value = message; window.clearTimeout(flashTimer); flashTimer = window.setTimeout(() => { notice.value = '' }, 3500) }
-async function loadHome() { try { loading.value = true; catalog.value = await request('home'); allProducts.value = (await request('products?limit=200')).items } catch (e) { error.value = e.message } finally { loading.value = false } }
+async function loadHome() { try { loading.value = true; catalogError.value = ''; catalog.value = await request('home'); allProducts.value = (await request('products?limit=200')).items } catch (e) { catalogError.value = e.message } finally { loading.value = false } }
 function waitForGoogle(timeout = 8000) {
   return new Promise((resolve) => {
     const started = Date.now()
@@ -995,7 +996,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <button v-if="activeCategory" class="ghost ghost--sm" type="button" @click="activeCategory = null">Reset filter</button>
         </div>
 
-        <p v-if="error" class="error">{{ error }}</p>
+        <p v-if="catalogError" class="error">{{ catalogError }}</p>
         <div v-else-if="loading" class="products">
           <div v-for="n in 4" :key="n" class="product-card product-card--skeleton" aria-hidden="true">
             <span class="skeleton skeleton--media"></span>
