@@ -17,7 +17,7 @@ class Events extends Controller {
   $status=(string)($b['status']??'draft');if(!in_array($status,['draft','published','archived'],true))$status='draft';
   $std=(!isset($b['default_price_standard'])||$b['default_price_standard']===''||$b['default_price_standard']===null)?null:max(0,(float)$b['default_price_standard']);
   $orig=(!isset($b['default_price_original'])||$b['default_price_original']===''||$b['default_price_original']===null)?null:max(0,(float)$b['default_price_original']);
-  $cover=trim((string)($b['cover_image_url']??''))?:null;$desc=trim((string)($b['description']??''))?:null;
+  $coverRaw=trim((string)($b['cover_image_url']??''));$cover=($coverRaw!==''&&strpos(EventService::coverKeyFromUrl($coverRaw),'events/')===0)?$coverRaw:null;$desc=trim((string)($b['description']??''))?:null;
   $now=$GLOBALS['now']??date('Y-m-d H:i:s');
   if($id>0){
    $own=$this->db()->query('SELECT id FROM vp_events WHERE id=? AND customer_id=? LIMIT 1',[$id,(int)$u['id']])->row_array();
@@ -32,6 +32,17 @@ class Events extends Controller {
    $id=(int)$this->db()->insert('vp_events',['customer_id'=>(int)$u['id'],'name'=>$name,'slug'=>$slug,'description'=>$desc,'cover_image_url'=>$cover,'event_date'=>$date,'default_price_standard'=>$std,'default_price_original'=>$orig,'status'=>$status,'created_at'=>$now,'updated_at'=>$now]);
   }
   $this->success(['id'=>$id],'Event disimpan');
+ }
+ public function cover():void{
+  $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();
+  $can=EventService::canCreate($this->db(),(int)$u['id']);if(!$can['ok'])$this->error($can['reason'],403);
+  if(empty($_FILES['file'])||!is_array($_FILES['file']))$this->error('File wajib diisi',422);
+  $f=$_FILES['file'];if(($f['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)$this->error('Upload gagal',422);
+  if((int)$f['size']<1||(int)$f['size']>5*1024*1024)$this->error('Ukuran file cover maksimal 5MB',422);
+  $mime=(new \finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
+  if(!isset(EventService::ALLOWED[$mime]))$this->error('Format gambar tidak didukung (JPG/PNG/WEBP/GIF/BMP)',422);
+  try{$res=EventService::storeCover($f['tmp_name'],$mime);}catch(\Throwable $e){$this->error($e->getMessage(),422);}
+  $this->success(['url'=>$res['coverUrl']],'Cover diunggah');
  }
  public function remove($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$id=(int)$id;

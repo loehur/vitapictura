@@ -1699,24 +1699,48 @@
 }
 
 /* ---- Event ---- */
-.event-search { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; align-items: end; margin-bottom: 0.6rem; }
-@media (min-width: 48rem) { .event-search { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; } }
-.event-search .cta { grid-column: 1 / -1; width: auto; margin-top: 0; padding: 0.7rem 1.4rem; }
-@media (min-width: 48rem) { .event-search .cta { grid-column: auto; } }
-.event-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
-@media (min-width: 48rem) { .event-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.event-card { display: grid; grid-template-rows: auto 1fr; padding: 0; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); overflow: hidden; text-align: left; font: inherit; cursor: pointer; box-shadow: var(--shadow-soft); }
-.event-card img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
-.event-card__ph { display: grid; place-items: center; aspect-ratio: 16 / 10; background: linear-gradient(135deg, var(--color-brand-200), var(--color-accent-100)); color: var(--color-brand-600); font-weight: 700; }
-.event-card__body { display: grid; gap: 0.2rem; padding: 0.6rem 0.7rem 0.75rem; }
-.event-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
-@media (min-width: 48rem) { .event-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (min-width: 64rem) { .event-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-.event-photo { display: grid; gap: 0.4rem; }
-.event-photo img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: var(--radius-card); border: 1px solid var(--color-line); user-select: none; }
-.event-photo__actions { display: grid; gap: 0.3rem; }
-.event-photo__actions .cta,
-.event-photo__actions .ghost { width: 100%; margin-top: 0; padding: 0.45rem 0.5rem; font-size: 0.78rem; }
+.ev-hero { display: grid; gap: 0.35rem; margin: 0.4rem 0 1.1rem; padding: 1.35rem 1.4rem; border-radius: var(--radius-card); background: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-800)); color: #fff; box-shadow: var(--shadow-soft); }
+.ev-hero .eyebrow { color: rgba(255, 255, 255, 0.82); }
+.ev-hero h1 { margin: 0.1rem 0 0; max-width: none; font-size: clamp(1.6rem, 5vw, 2.4rem); color: #fff; }
+.ev-hero__meta { margin: 0; font-size: 0.9rem; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.ev-hero .description { margin-top: 0.35rem; max-width: 62ch; color: rgba(255, 255, 255, 0.92); }
+
+.ev-panel { display: grid; gap: 0.8rem; padding: 1.1rem 1.15rem; margin: 0 0 1.1rem; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-soft); }
+.ev-panel__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+.ev-panel__head strong { font-size: 1.05rem; color: var(--color-brand-800); }
+.ev-count { font-size: 0.8rem; font-weight: 700; color: var(--color-brand-700, var(--color-brand-600)); padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--color-brand-50); }
+
+.ev-search { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; align-items: end; }
+@media (min-width: 48rem) { .ev-search { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; } }
+.ev-search__q { grid-column: 1 / -1; }
+@media (min-width: 48rem) { .ev-search__q { grid-column: auto; } }
+.ev-search__btn { grid-column: 1 / -1; width: 100%; margin-top: 0; }
+@media (min-width: 48rem) { .ev-search__btn { grid-column: auto; width: auto; padding: 0.7rem 1.4rem; } }
+.ev-panel .section-sub { margin: 0; }
+
+.ev-state { padding: 0.9rem 0; }
+
+.ev-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+@media (min-width: 48rem) { .ev-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 64rem) { .ev-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.ev-card { display: grid; grid-template-rows: auto 1fr; padding: 0; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); overflow: hidden; text-align: left; font: inherit; cursor: pointer; box-shadow: var(--shadow-soft); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.ev-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(43, 23, 79, 0.14); }
+.ev-card__media { display: block; aspect-ratio: 16 / 10; overflow: hidden; }
+.ev-card__media img { width: 100%; height: 100%; object-fit: cover; }
+.ev-card__ph { display: grid; place-items: center; width: 100%; height: 100%; background: linear-gradient(135deg, var(--color-brand-200), var(--color-accent-100)); color: var(--color-brand-600); font-weight: 700; }
+.ev-card__body { display: grid; gap: 0.2rem; padding: 0.7rem 0.8rem 0.85rem; }
+.ev-card__body strong { color: var(--color-brand-800); }
+.ev-card__meta { font-size: 0.82rem; color: var(--color-muted); }
+
+.ev-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+@media (min-width: 48rem) { .ev-photos { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 64rem) { .ev-photos { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.ev-photo { display: grid; gap: 0.4rem; }
+.ev-photo__media { aspect-ratio: 1 / 1; border-radius: var(--radius-card); overflow: hidden; border: 1px solid var(--color-line); }
+.ev-photo__media img { width: 100%; height: 100%; object-fit: cover; user-select: none; }
+.ev-photo__actions { display: grid; gap: 0.3rem; }
+.ev-photo__actions .cta,
+.ev-photo__actions .ghost { width: 100%; margin-top: 0; padding: 0.45rem 0.5rem; font-size: 0.78rem; }
 .cart-item__event-photos { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.3rem 0; }
 .cart-item__event-photos img { width: 3rem; height: 3rem; object-fit: cover; border-radius: 0.4rem; border: 1px solid var(--color-line); }
 .od-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin-top: 0.4rem; }

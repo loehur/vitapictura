@@ -775,40 +775,63 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </template>
     <template v-else-if="eventDetail">
-      <button class="back link" type="button" @click="navigate('events')">← Event</button>
-      <p class="category">Event</p>
-      <h1>{{ eventDetail.name }}</h1>
-      <p class="muted">{{ formatDate(eventDetail.event_date) }}<template v-if="eventDetail.owner_name"> · {{ eventDetail.owner_name }}</template></p>
-      <p v-if="eventDetail.description" class="description">{{ eventDetail.description }}</p>
-      <div class="event-grid">
-        <div v-for="ph in eventDetail.photos" :key="ph.id" class="event-photo">
-          <img :src="ph.previewUrl" :alt="'Foto ' + ph.id" loading="lazy" draggable="false" @contextmenu.prevent>
-          <div class="event-photo__actions">
-            <button v-if="ph.priceStandard != null" class="cta" type="button" @click="addEventPhoto(ph, 'standard')">Standar {{ rupiah.format(ph.priceStandard) }}</button>
-            <button v-if="ph.priceOriginal != null" class="ghost" type="button" @click="addEventPhoto(ph, 'original')">Original {{ rupiah.format(ph.priceOriginal) }}</button>
+      <button class="back link" type="button" @click="navigate('events')">← Semua Event</button>
+
+      <div class="ev-hero">
+        <p class="eyebrow">Event</p>
+        <h1>{{ eventDetail.name }}</h1>
+        <p class="ev-hero__meta">{{ formatDate(eventDetail.event_date) }}<template v-if="eventDetail.owner_name"> · {{ eventDetail.owner_name }}</template></p>
+        <p v-if="eventDetail.description" class="description">{{ eventDetail.description }}</p>
+      </div>
+
+      <section class="ev-panel">
+        <div class="ev-panel__head">
+          <strong>Galeri Foto</strong>
+          <span class="ev-count">{{ eventDetail.photos.length }} foto</span>
+        </div>
+        <p v-if="!eventDetail.photos.length" class="description">Belum ada foto pada event ini.</p>
+        <div v-else class="ev-photos">
+          <div v-for="ph in eventDetail.photos" :key="ph.id" class="ev-photo">
+            <div class="ev-photo__media">
+              <img :src="ph.previewUrl" :alt="'Foto ' + ph.id" loading="lazy" draggable="false" @contextmenu.prevent>
+            </div>
+            <div class="ev-photo__actions">
+              <button v-if="ph.priceStandard != null" class="cta" type="button" @click="addEventPhoto(ph, 'standard')">Standar {{ rupiah.format(ph.priceStandard) }}</button>
+              <button v-if="ph.priceOriginal != null" class="ghost" type="button" @click="addEventPhoto(ph, 'original')">Original {{ rupiah.format(ph.priceOriginal) }}</button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
     </template>
     <template v-else-if="eventsOpen">
-      <p class="category">Event</p>
-      <div class="event-search">
-        <label class="field"><span>Dari</span><input v-model="eventFrom" type="date"></label>
-        <label class="field"><span>Sampai</span><input v-model="eventTo" type="date"></label>
-        <label class="field"><span>Cari</span><input v-model="eventQuery" type="search" placeholder="Nama event" @keyup.enter="loadEventList"></label>
-        <button class="cta" type="button" @click="loadEventList">Cari</button>
+      <div class="ev-hero">
+        <p class="eyebrow">Event</p>
+        <h1>Jelajahi Event</h1>
+        <p class="description">Temukan momen Anda. Cari event berdasarkan rentang tanggal (maksimal 7 hari).</p>
       </div>
-      <p class="section-sub">Rentang maksimal 7 hari (default 7 hari terakhir).</p>
-      <p v-if="eventLoading" class="description">Memuat…</p>
-      <p v-else-if="!eventList.length" class="description">Tidak ada event pada rentang ini.</p>
-      <div v-else class="event-list">
-        <button v-for="ev in eventList" :key="ev.id" class="event-card" type="button" @click="openEvent(ev.slug)">
-          <img v-if="ev.cover_image_url" :src="assetUrl(ev.cover_image_url)" :alt="ev.name" loading="lazy">
-          <span v-else class="event-card__ph">Event</span>
-          <div class="event-card__body">
+
+      <section class="ev-panel">
+        <div class="ev-search">
+          <label class="field"><span>Dari</span><input v-model="eventFrom" type="date"></label>
+          <label class="field"><span>Sampai</span><input v-model="eventTo" type="date"></label>
+          <label class="field ev-search__q"><span>Cari</span><input v-model="eventQuery" type="search" placeholder="Nama event" @keyup.enter="loadEventList"></label>
+          <button class="cta ev-search__btn" type="button" @click="loadEventList">Cari Event</button>
+        </div>
+        <p class="section-sub">Rentang maksimal 7 hari (default 7 hari terakhir).</p>
+      </section>
+
+      <p v-if="eventLoading" class="description ev-state">Memuat event…</p>
+      <p v-else-if="!eventList.length" class="description ev-state">Tidak ada event pada rentang ini.</p>
+      <div v-else class="ev-grid">
+        <button v-for="ev in eventList" :key="ev.id" class="ev-card" type="button" @click="openEvent(ev.slug)">
+          <span class="ev-card__media">
+            <img v-if="ev.cover_image_url" :src="assetUrl(ev.cover_image_url)" :alt="ev.name" loading="lazy">
+            <span v-else class="ev-card__ph">Event</span>
+          </span>
+          <span class="ev-card__body">
             <strong>{{ ev.name }}</strong>
-            <span class="muted">{{ formatDate(ev.event_date) }} · {{ ev.photo_count }} foto</span>
-          </div>
+            <span class="ev-card__meta">{{ formatDate(ev.event_date) }} · {{ ev.photo_count }} foto</span>
+          </span>
         </button>
       </div>
     </template>

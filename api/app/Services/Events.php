@@ -12,6 +12,8 @@ class Events
     public const DEFAULT_MAX_PHOTOS = 200;
     public const MAX_DIMENSION = 640;
     public const MAX_BYTES = 204800; // 200 KB
+    public const COVER_MAX_DIMENSION = 1280;
+    public const COVER_MAX_BYTES = 204800; // 200 KB
 
     /** Ekstensi gambar yang diizinkan (berdasarkan MIME). */
     public const ALLOWED = [
@@ -90,13 +92,13 @@ class Events
     public static function publicRoot(): string
     {
         $p = defined('Env::MEDIA_STORAGE_PATH') ? trim((string) \Env::MEDIA_STORAGE_PATH) : '';
-        return $p !== '' ? rtrim($p, '/\\') : dirname(__DIR__, 4) . '/public/uploads';
+        return $p !== '' ? rtrim($p, '/\\') : dirname(__DIR__, 3) . '/public/uploads';
     }
 
     public static function privateRoot(): string
     {
         $p = defined('Env::EVENT_PRIVATE_STORAGE_PATH') ? trim((string) \Env::EVENT_PRIVATE_STORAGE_PATH) : '';
-        return $p !== '' ? rtrim($p, '/\\') : dirname(__DIR__, 4) . '/storage/private';
+        return $p !== '' ? rtrim($p, '/\\') : dirname(__DIR__, 3) . '/storage/private';
     }
 
     public static function previewUrl(string $key): string
@@ -240,6 +242,74 @@ class Events
         return ['standardKey' => $stdKey, 'previewKey' => $prevKey, 'mime' => $mime, 'width' => $w, 'height' => $h];
     }
 
+    /** Simpan cover event: resize <=1280px, selalu JPEG terkompres kecil, publik. */
+    public static function storeCover(string $tmpPath, string $mime): array
+    {
+        if (!isset(self::ALLOWED[$mime])) {
+            throw new \RuntimeException('Format gambar tidak didukung (JPG/PNG/WEBP/GIF/BMP)');
+        }
+        if (!function_exists('imagecreatefromstring')) {
+            throw new \RuntimeException('Ekstensi GD tidak tersedia di server');
+        }
+
+        $data = @file_get_contents($tmpPath);
+        if ($data === false || $data === '') {
+            throw new \RuntimeException('Gagal membaca file');
+        }
+        $img = @imagecreatefromstring($data);
+        if (!$img) {
+            throw new \RuntimeException('Gambar tidak valid');
+        }
+
+        $w = imagesx($img);
+        $h = imagesy($img);
+        $max = self::COVER_MAX_DIMENSION;
+        if ($w > $max || $h > $max) {
+            $scale = $max / max($w, $h);
+            $nw = max(1, (int) round($w * $scale));
+            $nh = max(1, (int) round($h * $scale));
+            $res = imagecreatetruecolor($nw, $nh);
+            imagecopyresampled($res, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            imagedestroy($img);
+            $img = $res;
+        }
+
+        // Cover selalu disimpan sebagai JPEG agar ukurannya kecil.
+        $bytes = '';
+        $quality = 80;
+        for ($i = 0; $i < 6; $i++) {
+            ob_start();
+            imagejpeg($img, null, $quality);
+            $bytes = (string) ob_get_clean();
+            if (strlen($bytes) <= self::COVER_MAX_BYTES || $quality <= 40) {
+                break;
+            }
+            $quality -= 10;
+        }
+        imagedestroy($img);
+
+        $key = 'events/covers/' . bin2hex(random_bytes(12)) . '.jpg';
+        self::writeFile(self::publicRoot() . '/' . $key, $bytes);
+
+        return ['coverKey' => $key, 'coverUrl' => self::previewUrl($key)];
+    }
+
+    /** Ambil key storage dari nilai cover (URL penuh atau key). */
+    public static function coverKeyFromUrl(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+        if (preg_match('~/uploads/(.+)$~i', $url, $m)) {
+            return ltrim($m[1], '/');
+        }
+        if (strpos($url, '://') !== false) {
+            return '';
+        }
+        return ltrim($url, '/');
+    }
+
     /** Simpan file original (format sumber apa adanya). */
     public static function storeOriginal(string $tmpPath, string $mime, int $eventId): array
     {
@@ -281,6 +351,15 @@ class Events
         foreach ($rows as $row) {
             self::deletePhotoFiles($row);
         }
+
+        $ev = $db->query('SELECT cover_image_url FROM vp_events WHERE id=? LIMIT 1', [$eventId])->row_array();
+        if ($ev && !empty($ev['cover_image_url'])) {
+            $key = self::coverKeyFromUrl((string) $ev['cover_image_url']);
+            if (strpos($key, 'events/') === 0) {
+                self::safeUnlink(self::publicRoot() . '/' . $key);
+            }
+        }
+
         self::removeEmptyDirs(self::publicRoot() . '/events/' . $eventId);
         self::removeEmptyDirs(self::privateRoot() . '/events/' . $eventId);
     }

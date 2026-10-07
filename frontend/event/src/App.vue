@@ -24,6 +24,10 @@ const booting = ref(true)
 const notice = ref(''); const error = ref('')
 let noticeTimer
 function flash(m, isErr = false) { if (isErr) { error.value = m; notice.value = '' } else { notice.value = m; error.value = '' } clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { notice.value = ''; error.value = '' }, 4000) }
+function uploadError(p, status) {
+  if (p?.error) return new Error(`${p.message || 'Upload gagal'}: ${p.error}${p.file ? ` (${p.file}:${p.line})` : ''}`)
+  return new Error(p?.message || `Upload gagal (${status})`)
+}
 
 const view = ref('events')
 const canCreateEvents = computed(() => (user.value?.whitelistMode !== 'whitelist') || user.value?.approved === true)
@@ -88,6 +92,30 @@ async function saveEvent() {
 }
 async function removeEvent(ev) { if (!window.confirm(`Hapus event "${ev.name}"?`)) return; try { await post(`/EventUser/Events/remove/${ev.id}`, {}); await loadEvents(); view.value = 'events'; flash('Event dihapus.') } catch (e) { flash(e.message, true) } }
 
+// ---- Cover upload ----
+const coverInput = ref(null); const coverBusy = ref(false)
+function pickCover() { coverInput.value?.click() }
+function removeCover() { if (editor.value) editor.value.cover_image_url = '' }
+async function onCoverFile(e) {
+  const f = e.target.files && e.target.files[0]; if (coverInput.value) coverInput.value.value = ''
+  if (!f) return
+  if (!/^image\//.test(f.type)) { flash('File harus berupa gambar.', true); return }
+  if (f.size > 5 * 1024 * 1024) { flash('Ukuran file maksimal 5MB.', true); return }
+  coverBusy.value = true
+  try { const d = await uploadCover(f); if (editor.value) editor.value.cover_image_url = d.url; flash('Cover berhasil diunggah.') }
+  catch (err) { flash(err.message, true) }
+  finally { coverBusy.value = false }
+}
+function uploadCover(file) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData(); form.append('file', file)
+    const xhr = new XMLHttpRequest(); xhr.open('POST', apiUrl('/EventUser/Events/cover')); xhr.withCredentials = true
+    xhr.onload = () => { let p = null; try { p = JSON.parse(xhr.responseText) } catch {}; if (xhr.status >= 200 && xhr.status < 300 && p?.status) resolve(p.data); else reject(uploadError(p, xhr.status)) }
+    xhr.onerror = () => reject(new Error('Upload gagal — koneksi terputus'))
+    xhr.send(form)
+  })
+}
+
 // ---- Photos ----
 const photos = ref([]); const photosLoading = ref(false)
 async function loadPhotos(eventId) { photosLoading.value = true; try { const d = await req(`/EventUser/Photos/list/${eventId}`); photos.value = d.items || [] } catch (e) { flash(e.message, true) } finally { photosLoading.value = false } }
@@ -119,7 +147,7 @@ function uploadPreview(item) {
     const form = new FormData(); form.append('file', item.file)
     const xhr = new XMLHttpRequest(); xhr.open('POST', apiUrl(`/EventUser/Photos/upload_preview/${editor.value.id}`)); xhr.withCredentials = true
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) item.progress = e.loaded / e.total }
-    xhr.onload = () => { let p = null; try { p = JSON.parse(xhr.responseText) } catch {} ; if (xhr.status >= 200 && xhr.status < 300 && p?.status) resolve(p.data); else reject(new Error(p?.message || 'Upload gagal')) }
+    xhr.onload = () => { let p = null; try { p = JSON.parse(xhr.responseText) } catch {} ; if (xhr.status >= 200 && xhr.status < 300 && p?.status) resolve(p.data); else reject(uploadError(p, xhr.status)) }
     xhr.onerror = () => reject(new Error('Upload gagal — koneksi terputus'))
     xhr.send(form)
   })
@@ -144,7 +172,7 @@ function uploadOriginalFile(photoId, file) {
   return new Promise((resolve, reject) => {
     const form = new FormData(); form.append('file', file)
     const xhr = new XMLHttpRequest(); xhr.open('POST', apiUrl(`/EventUser/Orders/upload_original/${photoId}`)); xhr.withCredentials = true
-    xhr.onload = () => { let p = null; try { p = JSON.parse(xhr.responseText) } catch {}; if (xhr.status >= 200 && xhr.status < 300 && p?.status) resolve(p.data); else reject(new Error(p?.message || 'Upload gagal')) }
+    xhr.onload = () => { let p = null; try { p = JSON.parse(xhr.responseText) } catch {}; if (xhr.status >= 200 && xhr.status < 300 && p?.status) resolve(p.data); else reject(uploadError(p, xhr.status)) }
     xhr.onerror = () => reject(new Error('Upload gagal'))
     xhr.send(form)
   })
@@ -266,7 +294,21 @@ watch(user, async (u) => {
             <label class="field"><span>Harga standar (Rp)</span><input v-model="editor.default_price_standard" type="number" min="0" placeholder="harga default"></label>
             <label class="field"><span>Harga original (Rp)</span><input v-model="editor.default_price_original" type="number" min="0" placeholder="harga default"></label>
             <label class="field"><span>Status</span><select v-model="editor.status"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></label>
-            <label class="field"><span>URL cover (opsional)</span><input v-model="editor.cover_image_url" placeholder="https://..."></label>
+          </div>
+          <div class="field cover-field">
+            <span>Cover event (opsional)</span>
+            <div class="cover-picker">
+              <div class="cover-picker__preview">
+                <img v-if="editor.cover_image_url" :src="editor.cover_image_url" alt="Cover event">
+                <span v-else class="cover-picker__ph">Belum ada cover</span>
+              </div>
+              <div class="cover-picker__actions">
+                <button class="btn btn--ghost btn--sm" type="button" :disabled="coverBusy" @click="pickCover">{{ coverBusy ? 'Mengunggah…' : (editor.cover_image_url ? 'Ganti cover' : 'Pilih gambar') }}</button>
+                <button v-if="editor.cover_image_url" class="btn btn--danger btn--sm" type="button" :disabled="coverBusy" @click="removeCover">Hapus cover</button>
+                <span class="muted small">JPG/PNG/WEBP · otomatis diperkecil (maks 5MB)</span>
+                <input ref="coverInput" type="file" accept="image/*" hidden @change="onCoverFile">
+              </div>
+            </div>
           </div>
           <label class="field"><span>Deskripsi</span><textarea v-model="editor.description"></textarea></label>
         </div>
