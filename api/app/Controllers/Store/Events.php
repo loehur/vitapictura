@@ -13,7 +13,7 @@ class Events extends Controller {
   if(($t-$f)>6*86400){$f=$t-6*86400;} // maks 7 hari inklusif
   $fromDate=date('Y-m-d',$f);$toDate=date('Y-m-d',$t);
   $q=trim((string)$this->query('q',''));
-  $sql="SELECT e.id,e.name,e.slug,e.description,e.cover_image_url,e.event_date,u.name owner_name,(SELECT COUNT(*) FROM vp_event_photos p WHERE p.event_id=e.id AND p.status='active') photo_count FROM vp_events e INNER JOIN vp_customers u ON u.id=e.customer_id WHERE e.status='published' AND e.event_date BETWEEN ? AND ?";
+  $sql="SELECT e.id,e.name,e.slug,e.description,e.cover_image_url,e.event_date,u.full_name owner_name,(SELECT COUNT(*) FROM vp_event_photos p WHERE p.event_id=e.id AND p.status='active') photo_count FROM vp_events e INNER JOIN vp_customers u ON u.id=e.customer_id WHERE e.status='published' AND e.event_date BETWEEN ? AND ?";
   $params=[$fromDate,$toDate];
   if($q!==''){$sql.=' AND e.name LIKE ?';$params[]='%'.$q.'%';}
   $sql.=' ORDER BY e.event_date DESC,e.id DESC LIMIT 200';
@@ -26,7 +26,7 @@ class Events extends Controller {
   $this->handleCors();
   $slug=trim((string)($slug!==null&&$slug!==''?$slug:$this->query('slug','')));
   if($slug==='')$this->error('Event tidak ditemukan',404);
-  $e=$this->db()->query("SELECT e.id,e.name,e.slug,e.description,e.cover_image_url,e.event_date,e.default_price_standard,e.default_price_original,u.name owner_name FROM vp_events e INNER JOIN vp_customers u ON u.id=e.customer_id WHERE e.slug=? AND e.status='published' LIMIT 1",[$slug])->row_array();
+  $e=$this->db()->query("SELECT e.id,e.name,e.slug,e.description,e.cover_image_url,e.event_date,e.default_price_standard,e.default_price_original,u.full_name owner_name FROM vp_events e INNER JOIN vp_customers u ON u.id=e.customer_id WHERE e.slug=? AND e.status='published' LIMIT 1",[$slug])->row_array();
   if(!$e)$this->error('Event tidak ditemukan',404);
   $e['id']=(int)$e['id'];
   $e['default_price_standard']=$e['default_price_standard']!==null?(float)$e['default_price_standard']:null;
