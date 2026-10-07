@@ -27,10 +27,23 @@ function flash(m, isErr = false) { if (isErr) { error.value = m; notice.value = 
 
 const view = ref('events')
 const canCreateEvents = computed(() => (user.value?.whitelistMode !== 'whitelist') || user.value?.approved === true)
+const navOpen = ref(false)
+const profileOpen = ref(false)
+const navItems = [
+  { key: 'events', label: 'Event Saya' },
+  { key: 'orders', label: 'Pesanan' },
+  { key: 'balance', label: 'Saldo' },
+]
+const navKey = computed(() => (view.value === 'event' ? 'events' : view.value))
+const titles = { events: 'Event Saya', event: 'Kelola Event', orders: 'Pesanan', balance: 'Saldo' }
+const currentTitle = computed(() => titles[view.value] || 'Event')
+const firstName = computed(() => (user.value?.name || '').trim().split(/\s+/)[0] || '')
+function switchView(key) { navOpen.value = false; go(key) }
 const googleClientId = ref('')
 const googleBtn = ref(null)
 let googleReady = false
 let googleRendered = false
+let googleInited = false
 
 async function boot() {
   booting.value = true
@@ -48,14 +61,14 @@ function loadGsi() {
 }
 async function renderGoogle() {
   const ok = await loadGsi(); if (!ok || !window.google?.accounts?.id) { flash('Skrip Google gagal dimuat.', true); return }
-  window.google.accounts.id.initialize({ client_id: googleClientId.value, callback: onGoogle })
+  if (!googleInited) { window.google.accounts.id.initialize({ client_id: googleClientId.value, callback: onGoogle }); googleInited = true }
   await nextTick()
   if (googleBtn.value && !googleRendered) { window.google.accounts.id.renderButton(googleBtn.value, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'id', width: 280 }); googleRendered = true }
 }
 async function onGoogle(resp) {
   try { user.value = await post('/EventUser/Auth/google', { credential: resp.credential }); flash('Berhasil masuk.'); await loadEvents() } catch (e) { flash(e.message, true) }
 }
-async function logout() { try { await post('/EventUser/Auth/logout') } catch {} user.value = null; view.value = 'events' }
+async function logout() { profileOpen.value = false; try { await post('/EventUser/Auth/logout') } catch {} user.value = null; view.value = 'events' }
 
 // ---- Events ----
 const events = ref([]); const limits = ref({ maxEvents: 3, maxPhotos: 200 }); const eventsLoading = ref(false)
@@ -147,46 +160,73 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
 </script>
 
 <template>
-  <p v-if="notice" class="toast">{{ notice }}</p>
-  <p v-if="error" class="toast toast--err">{{ error }}</p>
+  <div v-if="booting" class="auth-shell"><div class="auth-card"><p class="muted">Memuat…</p></div></div>
 
-  <div v-if="booting" class="login"><div class="login-card"><p class="muted">Memuat…</p></div></div>
-
-  <div v-else-if="!user" class="login">
-    <div class="login-card">
-      <div class="brand"><span class="brand-mark">VP</span><span>Vita Pictura Event</span></div>
-      <h2>Masuk untuk mengelola Event</h2>
-      <p class="muted small">Gunakan akun Google. Siapa pun bisa membuat event foto.</p>
+  <div v-else-if="!user" class="auth-shell">
+    <div class="auth-card">
+      <p class="eyebrow">VITA PICTURA</p>
+      <h1>Event</h1>
+      <p class="muted small">Masuk dengan Google untuk mengelola event foto.</p>
       <div class="google-btn"><div ref="googleBtn"></div></div>
-      <button class="btn btn--ghost btn--sm" style="margin-top:1rem" type="button" @click="renderGoogle">Tampilkan tombol Google</button>
     </div>
   </div>
 
-  <template v-else>
-    <header class="topbar">
-      <div class="brand"><span class="brand-mark">VP</span><span>Vita Pictura Event</span></div>
-      <nav class="nav">
-        <button :class="{ active: view === 'events' || view === 'event' }" @click="go('events')">Event Saya</button>
-        <button :class="{ active: view === 'orders' }" @click="go('orders')">Pesanan</button>
-        <button :class="{ active: view === 'balance' }" @click="go('balance')">Saldo</button>
-      </nav>
-      <div class="user">
-        <img v-if="user.avatarUrl" class="avatar" :src="user.avatarUrl" :alt="user.name">
-        <span v-else class="avatar avatar--fallback">{{ (user.name || 'U').charAt(0).toUpperCase() }}</span>
-        <button class="link small" type="button" @click="logout">Keluar</button>
+  <div v-else class="admin-layout">
+    <a class="skip-link" href="#main">Lewati ke konten</a>
+    <aside class="sidebar" :class="{ 'is-open': navOpen }">
+      <div class="sidebar__brand">
+        <span class="brand-mark" aria-hidden="true">VP</span>
+        <div>
+          <strong>Vita Pictura</strong>
+          <small>Event</small>
+        </div>
       </div>
-    </header>
+      <nav class="sidebar__nav" aria-label="Navigasi event">
+        <button v-for="item in navItems" :key="item.key" class="nav-item" type="button" :class="{ 'is-active': navKey === item.key }" @click="switchView(item.key)">{{ item.label }}</button>
+      </nav>
+      <div class="sidebar__user">
+        <button class="profile-trigger" type="button" :aria-expanded="profileOpen" aria-haspopup="menu" @click="profileOpen = !profileOpen">
+          <img v-if="user.avatarUrl" class="avatar" :src="user.avatarUrl" :alt="user.name">
+          <span v-else class="avatar" aria-hidden="true">{{ (user.name || 'U').charAt(0).toUpperCase() }}</span>
+          <span class="profile-trigger__meta">
+            <strong>{{ firstName }}</strong>
+            <small>Pengelola Event</small>
+          </span>
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div v-if="profileOpen" class="profile-dropdown" role="menu">
+          <button class="profile-dropdown__item profile-dropdown__item--danger" type="button" role="menuitem" @click="logout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+            <span>Keluar</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div v-if="navOpen" class="scrim" @click="navOpen = false"></div>
+    <div v-if="profileOpen" class="profile-scrim" @click="profileOpen = false"></div>
 
-    <main class="app">
+    <div id="main" tabindex="-1" class="admin-main">
+      <header class="topbar">
+        <button class="menu-btn" type="button" aria-label="Buka menu" @click="navOpen = !navOpen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+        <h2>{{ currentTitle }}</h2>
+        <button v-if="view === 'events'" class="primary" style="margin-left:auto" type="button" :disabled="events.length >= limits.maxEvents || !canCreateEvents" @click="openNewEvent">+ Event Baru</button>
+        <button v-else-if="view === 'orders'" class="ghost--sm" type="button" :disabled="ordersLoading" @click="loadOrders">Muat ulang</button>
+        <button v-else-if="view === 'balance'" class="ghost--sm" type="button" :disabled="balanceLoading" @click="loadBalance">Muat ulang</button>
+      </header>
+
+      <div class="alerts" aria-live="polite">
+        <div v-if="notice" class="alert alert--success" role="status"><span>{{ notice }}</span><button type="button" aria-label="Tutup" @click="notice = ''">×</button></div>
+        <div v-if="error" class="alert alert--error" role="alert"><span>{{ error }}</span><button type="button" aria-label="Tutup" @click="error = ''">×</button></div>
+      </div>
+
       <!-- Event list -->
       <template v-if="view === 'events'">
-        <div class="head">
-          <div><h1>Event Saya</h1><p class="muted small">Maksimal {{ limits.maxEvents }} event per akun · {{ limits.maxPhotos }} foto per event.</p></div>
-          <button class="btn" type="button" :disabled="events.length >= limits.maxEvents || !canCreateEvents" @click="openNewEvent">+ Event Baru</button>
-        </div>
         <p v-if="user.whitelistMode === 'whitelist' && !user.approved" class="card" style="border-color:#fde68a;background:#fffbeb">Akun Anda menunggu <strong>persetujuan admin</strong> sebelum dapat membuat event.</p>
+        <p class="muted small">Maksimal {{ limits.maxEvents }} event per akun · {{ limits.maxPhotos }} foto per event.</p>
         <p v-if="eventsLoading" class="muted">Memuat…</p>
-        <p v-else-if="!events.length" class="muted">Belum ada event. Buat event baru.</p>
+        <p v-else-if="!events.length" class="muted">Belum ada event. Klik “+ Event Baru”.</p>
         <div v-else class="events">
           <button v-for="ev in events" :key="ev.id" class="event-card" type="button" @click="openEvent(ev)">
             <img v-if="ev.cover_image_url" :src="ev.cover_image_url" :alt="ev.name">
@@ -203,9 +243,8 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
       <!-- Event editor -->
       <template v-else-if="view === 'event' && editor">
         <div class="head">
-          <div><h1>{{ editor.id ? 'Kelola Event' : 'Event Baru' }}</h1><p class="muted small">Atur detail, harga standar &amp; original, lalu unggah foto.</p></div>
+          <button class="btn btn--ghost" type="button" @click="go('events')">← Kembali</button>
           <div class="row-actions">
-            <button class="btn btn--ghost" type="button" @click="go('events')">← Kembali</button>
             <button v-if="editor.id" class="btn btn--danger" type="button" @click="removeEvent(editor)">Hapus event</button>
             <button class="btn" type="button" @click="saveEvent">Simpan</button>
           </div>
@@ -224,7 +263,8 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
         </div>
 
         <template v-if="editor.id">
-          <div class="head"><h2>Foto ({{ photos.length }}/{{ limits.maxPhotos }})</h2>
+          <div class="head">
+            <h2>Foto ({{ photos.length }}/{{ limits.maxPhotos }})</h2>
             <button class="btn btn--ghost btn--sm" type="button" @click="setAllPrices">Set harga semua (dari default)</button>
           </div>
 
@@ -239,7 +279,7 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
           <div v-if="queue.length" class="queue">
             <div v-for="q in queue" :key="q.id" class="q-item">
               <img v-if="q.preview" :src="q.preview" alt="">
-              <span v-else class="avatar avatar--fallback small">?</span>
+              <span v-else class="avatar">?</span>
               <div>
                 <div class="q-name">{{ q.name }}</div>
                 <div v-if="q.status === 'uploading' || q.status === 'queued'" class="q-bar"><span :style="{ width: Math.round((q.progress || 0) * 100) + '%' }"></span></div>
@@ -252,7 +292,7 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
           </div>
 
           <p v-if="photosLoading" class="muted">Memuat foto…</p>
-          <div v-else class="photos" style="margin-top:0.9rem">
+          <div v-else class="photos">
             <div v-for="p in photos" :key="p.id" class="photo">
               <img :src="p.previewUrl" :alt="'Foto ' + p.id" loading="lazy">
               <div class="photo__body">
@@ -275,12 +315,11 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
 
       <!-- Orders -->
       <template v-else-if="view === 'orders'">
-        <div class="head"><h1>Pesanan Masuk</h1><button class="btn btn--ghost btn--sm" type="button" @click="loadOrders">Muat ulang</button></div>
         <p v-if="ordersLoading" class="muted">Memuat…</p>
         <p v-else-if="!orders.length" class="muted">Belum ada pesanan.</p>
         <div v-else class="grid">
           <div v-for="o in orders" :key="o.orderId" class="card">
-            <div class="head" style="margin:0 0 0.6rem"><strong>#{{ o.orderNumber }}</strong><span class="badge">{{ o.status }}</span></div>
+            <div class="head" style="margin-bottom:0.6rem"><strong>#{{ o.orderNumber }}</strong><span class="badge">{{ o.status }}</span></div>
             <div class="photos">
               <div v-for="p in o.photos" :key="p.id" class="photo">
                 <img :src="p.previewUrl" :alt="'Foto ' + p.photoId" loading="lazy">
@@ -297,9 +336,8 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
 
       <!-- Balance -->
       <template v-else-if="view === 'balance'">
-        <div class="head"><h1>Saldo</h1><button class="btn btn--ghost btn--sm" type="button" @click="loadBalance">Muat ulang</button></div>
         <div class="card" style="max-width:22rem"><span class="muted small">Saldo saat ini</span><h1>{{ rupiah.format(balance) }}</h1><p class="muted small">Payout akan tersedia menyusul.</p></div>
-        <div class="head"><h2>Riwayat</h2></div>
+        <h2>Riwayat</h2>
         <p v-if="balanceLoading" class="muted">Memuat…</p>
         <table v-else class="table">
           <thead><tr><th>Tanggal</th><th>Tipe</th><th>Order</th><th>Jumlah</th></tr></thead>
@@ -309,6 +347,6 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
           </tbody>
         </table>
       </template>
-    </main>
-  </template>
+    </div>
+  </div>
 </template>

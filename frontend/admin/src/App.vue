@@ -724,12 +724,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </section>
         <section class="panel">
           <div class="panel__head">
-            <div class="row-actions">
-              <span class="muted">Mode pembuat event:</span>
-              <button class="btn-action" :class="eventUsersWhitelistMode === 'open' ? 'btn-action--ship' : 'btn-action--detail'" type="button" @click="setWhitelistMode('open')">Terbuka</button>
-              <button class="btn-action" :class="eventUsersWhitelistMode === 'whitelist' ? 'btn-action--ship' : 'btn-action--detail'" type="button" @click="setWhitelistMode('whitelist')">Whitelist</button>
-              <span class="muted small">{{ eventUsersWhitelistMode === 'whitelist' ? 'Hanya user yang disetujui boleh buat event.' : 'Siapa pun boleh buat event.' }}</span>
-            </div>
+            <span class="muted small">Whitelist aktif — hanya user yang <strong>disetujui</strong> yang boleh membuat event. Setujui lewat tombol di kolom <strong>Approval</strong>.</span>
           </div>
         </section>
         <section class="panel" :aria-busy="eventUsersLoading">
@@ -747,8 +742,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
                   <td data-label="Limit"><small>Event: {{ u.max_events ?? eventUsersDefaults.maxEvents }} · Foto: {{ u.max_photos_per_event ?? eventUsersDefaults.maxPhotos }}</small></td>
                   <td data-label="Status"><span class="status" :class="u.status === 'active' ? 'status--paid' : 'status--expired'">{{ u.status }}</span></td>
                   <td data-label="Approval">
-                    <button v-if="eventUsersWhitelistMode === 'whitelist'" class="link" type="button" @click="setEventUserApproval(u, !u.approved)">{{ u.approved ? 'Batalkan' : 'Setujui' }}</button>
-                    <span v-else class="status" :class="u.approved ? 'status--paid' : 'status--unpaid'">{{ u.approved ? 'disetujui' : 'belum' }}</span>
+                    <button class="link" type="button" @click="setEventUserApproval(u, !u.approved)">{{ u.approved ? 'Batalkan' : 'Setujui' }}</button>
                   </td>
                   <td data-label="Aksi"><button class="link" type="button" @click="openEventUser(u)">Detail</button></td>
                 </tr>

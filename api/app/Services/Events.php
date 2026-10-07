@@ -61,12 +61,10 @@ class Events
         }
     }
 
-    /** Mode whitelist: 'open' (siapa pun) atau 'whitelist' (hanya disetujui admin). */
+    /** Dipaksa whitelist: hanya user yang disetujui admin boleh membuat event. */
     public static function whitelistMode(DB $db): string
     {
-        $row = $db->query("SELECT value FROM vp_settings WHERE name='event_whitelist_mode' LIMIT 1")->row_array();
-        $v = $row ? (string) $row['value'] : 'open';
-        return $v === 'whitelist' ? 'whitelist' : 'open';
+        return 'whitelist';
     }
 
     /** @return array{ok:bool,reason:string,approved:bool} */
