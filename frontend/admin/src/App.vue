@@ -553,8 +553,10 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
                     <span v-else class="status" :class="`status--${order.status}`">{{ order.status }}</span>
                   </td>
                   <td data-label="Aksi">
-                    <button class="link" type="button" @click="openOrder(order)">Detail</button>
-                    <button v-if="order.status === 'processing'" class="link" type="button" @click="openShip(order)">Kirim</button>
+                    <div class="row-actions">
+                      <button class="btn-action btn-action--detail" type="button" @click="openOrder(order)">Detail</button>
+                      <button v-if="order.status === 'processing'" class="btn-action btn-action--ship" type="button" @click="openShip(order)">Kirim</button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
