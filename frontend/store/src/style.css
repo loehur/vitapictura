@@ -95,16 +95,14 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: -1.25rem -1.25rem 1.5rem;
-    padding: 0.85rem 1.25rem;
+    padding: 0.85rem max(1.25rem, calc(50% - 40rem + 1.25rem));
     background: rgba(251, 249, 255, 0.85);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--color-line);
   }
   @media (min-width: 48rem) {
     .site-header {
-      margin: -2rem -2.5rem 2rem;
-      padding: 1rem 2.5rem;
+      padding: 1rem max(2.5rem, calc(50% - 40rem + 2.5rem));
     }
   }
 
@@ -159,6 +157,10 @@
   }
   .nav-link:hover {
     background: var(--color-brand-100);
+  }
+  .nav-link.is-active {
+    background: var(--color-brand-100);
+    color: var(--color-brand-800);
   }
   .caret {
     width: 0.9rem;

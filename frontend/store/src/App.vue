@@ -458,11 +458,24 @@ async function loadOrderView(id) {
     data.items = (data.items || []).map((it) => ({ ...it, selections: safeJson(it.selections_snapshot) }))
     orderDetail.value = data
   } catch (e) { error.value = e.message; return false }
-  resetViews(); ordersOpen.value = true; orderDetailOpen.value = true
+  await loadOrdersView()
+  orderDetailOpen.value = true
+  pushModalHistory()
   return true
 }
-function openOrderDetail(order) { return navigate('order', order.id) }
+async function openOrderDetail(order) {
+  if (!requireCustomer()) return
+  try {
+    const data = await request(`/Customer/Orders/show/${order.id}`)
+    data.items = (data.items || []).map((it) => ({ ...it, selections: safeJson(it.selections_snapshot) }))
+    orderDetail.value = data
+    orderDetailOpen.value = true
+    pushModalHistory()
+  } catch (e) { error.value = e.message }
+}
+function closeOrderDetail() { orderDetailOpen.value = false; orderDetail.value = null; popModalHistory() }
 const canPayOrder = computed(() => !!orderDetail.value && orderDetail.value.status === 'pending_payment' && orderDetail.value.payment_status !== 'paid')
+const isHome = computed(() => !product.value && !cartOpen.value && !ordersOpen.value && !addressBook.value && !checkoutOpen.value)
 async function payOrder() {
   if (!orderDetail.value) return
   payingOrder.value = true
@@ -568,47 +581,48 @@ async function placeOrder() {
   } catch (e) { error.value = e.message } finally { placingOrder.value = false }
 }
 
-onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart();window.addEventListener('popstate',()=>{if(suppressPop){suppressPop=false;return}if(loginOpen.value){loginOpen.value=false;modalHistory=false;return}if(addressModalOpen.value){addressModalOpen.value=false;modalHistory=false;return}applyRoute(parseRoute(window.location.pathname))});await applyRoute(parseRoute(window.location.pathname))})
+onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();await refreshCart();window.addEventListener('popstate',()=>{if(suppressPop){suppressPop=false;return}if(loginOpen.value){loginOpen.value=false;modalHistory=false;return}if(addressModalOpen.value){addressModalOpen.value=false;modalHistory=false;return}if(orderDetailOpen.value){orderDetailOpen.value=false;orderDetail.value=null;modalHistory=false;return}applyRoute(parseRoute(window.location.pathname))});await applyRoute(parseRoute(window.location.pathname))})
 </script>
 
 <template>
+  <header class="site-header">
+    <button class="brand" type="button" @click="goHome">
+      <span class="brand-mark" aria-hidden="true">VP</span>
+      <span class="brand-name">Vita Pictura</span>
+    </button>
+    <nav class="site-nav" aria-label="Navigasi utama">
+      <button class="nav-link" type="button" :class="{ 'is-active': isHome }" @click="goHome">Catalog</button>
+      <button class="nav-link" type="button" :class="{ 'is-active': ordersOpen }" @click="openOrders">Orders</button>
+      <button class="nav-link" type="button" :class="{ 'is-active': cartOpen }" @click="openCart">Cart<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
+    </nav>
+    <div class="header-actions">
+      <div class="profile-menu">
+        <button class="nav-link account" type="button" :aria-haspopup="customer ? 'menu' : null" :aria-expanded="profileOpen" @click="toggleProfile">
+          <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
+          <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
+          <span class="account-name">{{ customerFirstName }}</span>
+          <svg v-if="customer" class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div v-if="profileOpen" class="profile-dropdown" role="menu">
+          <button class="profile-dropdown__item" type="button" role="menuitem" @click="goAccount">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <span>Addresses</span>
+          </button>
+          <button class="profile-dropdown__item profile-dropdown__item--danger" type="button" role="menuitem" @click="logoutCustomer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+            <span>Logout</span>
+          </button>
+        </div>
+      </div>
+      <button class="mobile-cart" type="button" aria-label="Keranjang" @click="openCart">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
+        <span v-if="cartCount" class="badge">{{ cartCount }}</span>
+      </button>
+    </div>
+  </header>
+
   <main class="app-shell">
     <a class="skip-link" href="#main">Lewati ke konten</a>
-    <header class="site-header">
-      <button class="brand" type="button" @click="goHome">
-        <span class="brand-mark" aria-hidden="true">VP</span>
-        <span class="brand-name">Vita Pictura</span>
-      </button>
-      <nav class="site-nav" aria-label="Navigasi utama">
-        <button class="nav-link" type="button" @click="goHome">Catalog</button>
-        <button class="nav-link" type="button" @click="openOrders">Orders</button>
-        <button class="nav-link" type="button" @click="openCart">Cart<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
-      </nav>
-      <div class="header-actions">
-        <div class="profile-menu">
-          <button class="nav-link account" type="button" :aria-haspopup="customer ? 'menu' : null" :aria-expanded="profileOpen" @click="toggleProfile">
-            <img v-if="customer && customer.avatarUrl" class="avatar" :src="customer.avatarUrl" :alt="customer.name">
-            <span v-else class="avatar avatar--fallback" aria-hidden="true">{{ (customer ? customer.name : 'M').charAt(0).toUpperCase() }}</span>
-            <span class="account-name">{{ customerFirstName }}</span>
-            <svg v-if="customer" class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-          <div v-if="profileOpen" class="profile-dropdown" role="menu">
-            <button class="profile-dropdown__item" type="button" role="menuitem" @click="goAccount">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
-              <span>Addresses</span>
-            </button>
-            <button class="profile-dropdown__item profile-dropdown__item--danger" type="button" role="menuitem" @click="logoutCustomer">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
-        <button class="mobile-cart" type="button" aria-label="Keranjang" @click="openCart">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
-          <span v-if="cartCount" class="badge">{{ cartCount }}</span>
-        </button>
-      </div>
-    </header>
     <div v-if="profileOpen" class="profile-scrim" @click="profileOpen = false"></div>
     <div class="alerts" aria-live="polite">
       <div v-if="error" class="alert alert--error" role="alert">
@@ -621,42 +635,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </div>
     <div id="main" tabindex="-1">
-    <template v-if="orderDetailOpen">
-      <p class="category">Pesanan</p>
-      <h1>{{ orderDetail?.order_number || 'Detail pesanan' }}</h1>
-      <div class="od-status">
-        <span class="status" :class="`status--${orderDetail?.status}`">{{ orderDetail?.status }}</span>
-        <span class="status" :class="`status--${orderDetail?.payment_status || 'unpaid'}`">{{ orderDetail?.payment_status || 'belum dibayar' }}</span>
-      </div>
-      <p class="order-card__meta">{{ formatDate(orderDetail?.created_at) }}</p>
-
-      <section class="co-section od-items">
-        <div v-for="(it, i) in orderDetail?.items || []" :key="i" class="od-item">
-          <strong>{{ it.product_name }}</strong>
-          <span v-for="s in it.selections" :key="s.valueId" class="cart-item__choice">{{ s.group }}: {{ s.value }}</span>
-          <div class="od-item__row"><span>{{ it.quantity }} pcs</span><strong>{{ rupiah.format(it.total_price) }}</strong></div>
-        </div>
-      </section>
-
-      <section v-if="orderDetail?.recipient" class="co-section co-summary">
-        <div><span>Penerima</span><strong>{{ orderDetail.recipient.recipientName }}</strong></div>
-        <div><span>Telepon</span><strong>{{ orderDetail.recipient.recipientPhone }}</strong></div>
-        <div><span>Alamat</span><strong>{{ orderDetail.recipient.addressLine }}</strong></div>
-      </section>
-
-      <section class="co-section co-summary">
-        <div><span>Subtotal</span><strong>{{ rupiah.format(orderDetail?.subtotal || 0) }}</strong></div>
-        <div><span>Ongkir</span><strong>{{ rupiah.format(orderDetail?.shipping_cost || 0) }}</strong></div>
-        <div class="co-total"><span>Total</span><strong>{{ rupiah.format(orderDetail?.total || 0) }}</strong></div>
-      </section>
-
-      <section v-if="orderDetail?.tracking_number" class="co-section co-summary">
-        <div><span>Resi</span><strong>{{ orderDetail.tracking_number }}</strong></div>
-      </section>
-
-      <button v-if="canPayOrder" class="cta" type="button" :disabled="payingOrder" @click="payOrder">{{ payingOrder ? 'Memproses…' : 'Bayar sekarang' }}</button>
-    </template>
-    <template v-else-if="ordersOpen">
+    <template v-if="ordersOpen">
       <p class="category">Pesanan</p>
 
       <div v-if="!orders.length" class="state">
@@ -677,6 +656,46 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           </div>
           <span v-if="order.tracking_number" class="order-card__meta">Resi: {{ order.tracking_number }}</span>
         </article>
+      </div>
+
+      <!-- Modal detail pesanan -->
+      <div v-if="orderDetailOpen" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Detail pesanan" @click.self="closeOrderDetail">
+        <div class="modal-card">
+          <button class="modal-close" type="button" aria-label="Tutup" @click="closeOrderDetail">×</button>
+          <p class="category">Pesanan</p>
+          <h2>{{ orderDetail?.order_number || 'Detail pesanan' }}</h2>
+          <div class="od-status">
+            <span class="status" :class="`status--${orderDetail?.status}`">{{ orderDetail?.status }}</span>
+            <span class="status" :class="`status--${orderDetail?.payment_status || 'unpaid'}`">{{ orderDetail?.payment_status || 'belum dibayar' }}</span>
+          </div>
+          <p class="order-card__meta">{{ formatDate(orderDetail?.created_at) }}</p>
+
+          <section class="co-section od-items">
+            <div v-for="(it, i) in orderDetail?.items || []" :key="i" class="od-item">
+              <strong>{{ it.product_name }}</strong>
+              <span v-for="s in it.selections" :key="s.valueId" class="cart-item__choice">{{ s.group }}: {{ s.value }}</span>
+              <div class="od-item__row"><span>{{ it.quantity }} pcs</span><strong>{{ rupiah.format(it.total_price) }}</strong></div>
+            </div>
+          </section>
+
+          <section v-if="orderDetail?.recipient" class="co-section co-summary">
+            <div><span>Penerima</span><strong>{{ orderDetail.recipient.recipientName }}</strong></div>
+            <div><span>Telepon</span><strong>{{ orderDetail.recipient.recipientPhone }}</strong></div>
+            <div><span>Alamat</span><strong>{{ orderDetail.recipient.addressLine }}</strong></div>
+          </section>
+
+          <section class="co-section co-summary">
+            <div><span>Subtotal</span><strong>{{ rupiah.format(orderDetail?.subtotal || 0) }}</strong></div>
+            <div><span>Ongkir</span><strong>{{ rupiah.format(orderDetail?.shipping_cost || 0) }}</strong></div>
+            <div class="co-total"><span>Total</span><strong>{{ rupiah.format(orderDetail?.total || 0) }}</strong></div>
+          </section>
+
+          <section v-if="orderDetail?.tracking_number" class="co-section co-summary">
+            <div><span>Resi</span><strong>{{ orderDetail.tracking_number }}</strong></div>
+          </section>
+
+          <button v-if="canPayOrder" class="cta" type="button" :disabled="payingOrder" @click="payOrder">{{ payingOrder ? 'Memproses…' : 'Bayar sekarang' }}</button>
+        </div>
       </div>
     </template>
     <template v-else-if="cartOpen">
