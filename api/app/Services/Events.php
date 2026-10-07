@@ -56,8 +56,31 @@ class Events
         $exists = $db->query('SELECT customer_id FROM vp_event_profiles WHERE customer_id=? LIMIT 1', [$customerId])->row_array();
         if (!$exists) {
             $now = date('Y-m-d H:i:s');
-            $db->insert('vp_event_profiles', ['customer_id' => $customerId, 'balance' => 0, 'status' => 'active', 'created_at' => $now, 'updated_at' => $now]);
+            $approved = self::whitelistMode($db) === 'whitelist' ? 0 : 1;
+            $db->insert('vp_event_profiles', ['customer_id' => $customerId, 'balance' => 0, 'status' => 'active', 'approved' => $approved, 'created_at' => $now, 'updated_at' => $now]);
         }
+    }
+
+    /** Mode whitelist: 'open' (siapa pun) atau 'whitelist' (hanya disetujui admin). */
+    public static function whitelistMode(DB $db): string
+    {
+        $row = $db->query("SELECT value FROM vp_settings WHERE name='event_whitelist_mode' LIMIT 1")->row_array();
+        $v = $row ? (string) $row['value'] : 'open';
+        return $v === 'whitelist' ? 'whitelist' : 'open';
+    }
+
+    /** @return array{ok:bool,reason:string,approved:bool} */
+    public static function canCreate(DB $db, int $customerId): array
+    {
+        $prof = $db->query('SELECT status,approved FROM vp_event_profiles WHERE customer_id=? LIMIT 1', [$customerId])->row_array();
+        if ($prof && $prof['status'] === 'blocked') {
+            return ['ok' => false, 'reason' => 'Akun event diblokir', 'approved' => false];
+        }
+        $approved = $prof ? ((int) $prof['approved'] === 1) : false;
+        if (self::whitelistMode($db) === 'whitelist' && !$approved) {
+            return ['ok' => false, 'reason' => 'Akun event menunggu persetujuan admin', 'approved' => false];
+        }
+        return ['ok' => true, 'reason' => '', 'approved' => $approved];
     }
 
     public static function slugify(string $s): string

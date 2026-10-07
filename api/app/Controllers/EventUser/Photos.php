@@ -13,6 +13,7 @@ class Photos extends Controller {
  }
  public function upload_preview($eventId=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$eventId=(int)$eventId;
+  $can=Events::canCreate($this->db(),(int)$u['id']);if(!$can['ok'])$this->error($can['reason'],403);
   $ev=$this->db()->query('SELECT id FROM vp_events WHERE id=? AND customer_id=? LIMIT 1',[$eventId,(int)$u['id']])->row_array();
   if(!$ev)$this->error('Event tidak ditemukan',404);
   $limits=Events::limits($this->db(),(int)$u['id']);

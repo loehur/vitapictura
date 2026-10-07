@@ -26,6 +26,7 @@ let noticeTimer
 function flash(m, isErr = false) { if (isErr) { error.value = m; notice.value = '' } else { notice.value = m; error.value = '' } clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { notice.value = ''; error.value = '' }, 4000) }
 
 const view = ref('events')
+const canCreateEvents = computed(() => (user.value?.whitelistMode !== 'whitelist') || user.value?.approved === true)
 const googleClientId = ref('')
 const googleBtn = ref(null)
 let googleReady = false
@@ -181,8 +182,9 @@ onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); awa
       <template v-if="view === 'events'">
         <div class="head">
           <div><h1>Event Saya</h1><p class="muted small">Maksimal {{ limits.maxEvents }} event per akun · {{ limits.maxPhotos }} foto per event.</p></div>
-          <button class="btn" type="button" :disabled="events.length >= limits.maxEvents" @click="openNewEvent">+ Event Baru</button>
+          <button class="btn" type="button" :disabled="events.length >= limits.maxEvents || !canCreateEvents" @click="openNewEvent">+ Event Baru</button>
         </div>
+        <p v-if="user.whitelistMode === 'whitelist' && !user.approved" class="card" style="border-color:#fde68a;background:#fffbeb">Akun Anda menunggu <strong>persetujuan admin</strong> sebelum dapat membuat event.</p>
         <p v-if="eventsLoading" class="muted">Memuat…</p>
         <p v-else-if="!events.length" class="muted">Belum ada event. Buat event baru.</p>
         <div v-else class="events">

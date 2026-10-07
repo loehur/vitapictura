@@ -11,6 +11,7 @@ class Events extends Controller {
  }
  public function save($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$id=(int)$id;$b=$this->getBody();
+  $can=EventService::canCreate($this->db(),(int)$u['id']);if(!$can['ok'])$this->error($can['reason'],403);
   $name=trim((string)($b['name']??''));if($name==='')$this->error('Nama event wajib diisi',422);
   $date=trim((string)($b['event_date']??''));$ts=strtotime($date);if($ts===false)$this->error('Tanggal event tidak valid',422);$date=date('Y-m-d',$ts);
   $status=(string)($b['status']??'draft');if(!in_array($status,['draft','published','archived'],true))$status='draft';

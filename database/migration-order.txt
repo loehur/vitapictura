@@ -17,5 +17,6 @@ Apply against a fresh Vita Pictura database, in this exact order:
 015_payments_expiry.sql
 016_order_item_note.sql
 017_events.sql
+018_event_whitelist.sql
 
 Run the demo seed files only in local development. Never run them in staging or production.

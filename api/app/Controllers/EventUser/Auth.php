@@ -20,9 +20,10 @@ class Auth extends Controller {
  public function me():void{
   $this->handleCors();$u=CustomerAuth::user();if(!$u)$this->error('Unauthorized',401);
   Events::ensureProfile($this->db(),(int)$u['id']);
-  $prof=$this->db()->query('SELECT status,balance FROM vp_event_profiles WHERE customer_id=? LIMIT 1',[(int)$u['id']])->row_array();
+  $prof=$this->db()->query('SELECT status,balance,approved FROM vp_event_profiles WHERE customer_id=? LIMIT 1',[(int)$u['id']])->row_array();
   if($prof&&$prof['status']==='blocked')$this->error('Akun event diblokir',403);
-  $this->success(['id'=>(int)$u['id'],'name'=>(string)($u['name']??''),'email'=>(string)($u['email']??''),'avatarUrl'=>(string)($u['avatarUrl']??''),'balance'=>$prof?(float)$prof['balance']:0,'limits'=>Events::limits($this->db(),(int)$u['id'])],'Authenticated');
+  $mode=Events::whitelistMode($this->db());
+  $this->success(['id'=>(int)$u['id'],'name'=>(string)($u['name']??''),'email'=>(string)($u['email']??''),'avatarUrl'=>(string)($u['avatarUrl']??''),'balance'=>$prof?(float)$prof['balance']:0,'approved'=>$prof?((int)$prof['approved']===1):($mode==='open'),'whitelistMode'=>$mode,'limits'=>Events::limits($this->db(),(int)$u['id'])],'Authenticated');
  }
  public function logout():void{$this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);CustomerAuth::logout();$this->success(null,'Logout berhasil');}
  private function verify(string $credential):array{

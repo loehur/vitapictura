@@ -390,12 +390,15 @@ async function toggleCustomerStatus() {
 const eventUsers = ref([])
 const eventUsersLoading = ref(false)
 const eventUsersDefaults = ref({ maxEvents: 3, maxPhotos: 200 })
+const eventUsersWhitelistMode = ref('open')
 const eventUserModal = ref(false)
 const eventUserDetail = ref(null)
 const eventUserLoading = ref(false)
 const eventUserSaving = ref(false)
 const eventUserLimits = ref({ max_events: '', max_photos_per_event: '' })
-async function loadEventUsers() { eventUsersLoading.value = true; try { const d = await api('EventUsers/index'); eventUsers.value = d.items || []; if (d.defaults) eventUsersDefaults.value = d.defaults } catch (e) { error.value = e.message } finally { eventUsersLoading.value = false } }
+async function loadEventUsers() { eventUsersLoading.value = true; try { const d = await api('EventUsers/index'); eventUsers.value = d.items || []; if (d.defaults) eventUsersDefaults.value = d.defaults; eventUsersWhitelistMode.value = d.whitelistMode || 'open' } catch (e) { error.value = e.message } finally { eventUsersLoading.value = false } }
+async function setWhitelistMode(mode) { try { await api('Settings/save', { event_whitelist_mode: mode }); eventUsersWhitelistMode.value = mode; flash('Mode whitelist diperbarui.') } catch (e) { error.value = e.message } }
+async function setEventUserApproval(u, approved) { try { await api(`EventUsers/set-approval/${u.id}`, { approved }); await loadEventUsers(); if (eventUserDetail.value && eventUserDetail.value.id === u.id) await openEventUser({ id: u.id }); flash(approved ? 'User disetujui.' : 'Persetujuan dibatalkan.') } catch (e) { error.value = e.message } }
 async function openEventUser(row) { eventUserModal.value = true; eventUserDetail.value = null; eventUserLoading.value = true; try { const d = await api(`EventUsers/show/${row.id}`); eventUserDetail.value = d; eventUserLimits.value = { max_events: d.max_events ?? '', max_photos_per_event: d.max_photos_per_event ?? '' } } catch (e) { error.value = e.message } finally { eventUserLoading.value = false } }
 function closeEventUser() { eventUserModal.value = false; eventUserDetail.value = null }
 async function saveEventUserLimits() { if (!eventUserDetail.value) return; eventUserSaving.value = true; try { await api(`EventUsers/save-limits/${eventUserDetail.value.id}`, eventUserLimits.value); await openEventUser({ id: eventUserDetail.value.id }); await loadEventUsers(); flash('Limit disimpan.') } catch (e) { error.value = e.message } finally { eventUserSaving.value = false } }
@@ -719,12 +722,22 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           <article class="stat"><span>Default event</span><strong>{{ eventUsersDefaults.maxEvents }}</strong></article>
           <article class="stat"><span>Default foto/event</span><strong>{{ eventUsersDefaults.maxPhotos }}</strong></article>
         </section>
+        <section class="panel">
+          <div class="panel__head">
+            <div class="row-actions">
+              <span class="muted">Mode pembuat event:</span>
+              <button class="btn-action" :class="eventUsersWhitelistMode === 'open' ? 'btn-action--ship' : 'btn-action--detail'" type="button" @click="setWhitelistMode('open')">Terbuka</button>
+              <button class="btn-action" :class="eventUsersWhitelistMode === 'whitelist' ? 'btn-action--ship' : 'btn-action--detail'" type="button" @click="setWhitelistMode('whitelist')">Whitelist</button>
+              <span class="muted small">{{ eventUsersWhitelistMode === 'whitelist' ? 'Hanya user yang disetujui boleh buat event.' : 'Siapa pun boleh buat event.' }}</span>
+            </div>
+          </div>
+        </section>
         <section class="panel" :aria-busy="eventUsersLoading">
           <div v-if="eventUsersLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 4" :key="n" class="skeleton skeleton--row"></span></div>
           <p v-else-if="!eventUsers.length" class="muted">Belum ada user event.</p>
           <div v-else class="table-wrap">
             <table class="orders-table">
-              <thead><tr><th>User</th><th>Event</th><th>Foto</th><th>Saldo</th><th>Limit</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>User</th><th>Event</th><th>Foto</th><th>Saldo</th><th>Limit</th><th>Status</th><th>Approval</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="u in eventUsers" :key="u.id">
                   <td data-label="User"><strong>{{ u.full_name }}</strong><small>{{ u.email }}</small></td>
@@ -733,6 +746,10 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
                   <td data-label="Saldo">{{ rupiah.format(u.balance) }}</td>
                   <td data-label="Limit"><small>Event: {{ u.max_events ?? eventUsersDefaults.maxEvents }} · Foto: {{ u.max_photos_per_event ?? eventUsersDefaults.maxPhotos }}</small></td>
                   <td data-label="Status"><span class="status" :class="u.status === 'active' ? 'status--paid' : 'status--expired'">{{ u.status }}</span></td>
+                  <td data-label="Approval">
+                    <button v-if="eventUsersWhitelistMode === 'whitelist'" class="link" type="button" @click="setEventUserApproval(u, !u.approved)">{{ u.approved ? 'Batalkan' : 'Setujui' }}</button>
+                    <span v-else class="status" :class="u.approved ? 'status--paid' : 'status--unpaid'">{{ u.approved ? 'disetujui' : 'belum' }}</span>
+                  </td>
                   <td data-label="Aksi"><button class="link" type="button" @click="openEventUser(u)">Detail</button></td>
                 </tr>
               </tbody>
@@ -1232,6 +1249,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </div>
         <div class="modal-actions">
           <button class="ghost--sm" type="button" :disabled="eventUserSaving" @click="saveEventUserLimits">Simpan limit</button>
+          <button class="ghost--sm" type="button" :disabled="eventUserSaving" @click="setEventUserApproval(eventUserDetail, !eventUserDetail.approved)">{{ eventUserDetail.approved ? 'Batalkan persetujuan' : 'Setujui user' }}</button>
           <button class="link-danger" type="button" :disabled="eventUserSaving" @click="toggleEventUserStatus">{{ eventUserDetail.status === 'blocked' ? 'Aktifkan kembali' : 'Blokir user' }}</button>
         </div>
 
