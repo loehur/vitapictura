@@ -30,6 +30,13 @@ class Env
     const MEDIA_STORAGE_PATH = '';
     const CUSTOMER_UPLOAD_MAX_BYTES = 52428800; // 50 MB
 
+    /**
+     * Path privat untuk file Event (standard bersih & original).
+     * HARUS di luar folder publik (tidak disajikan langsung oleh web server).
+     * Kosongkan = {project_root}/storage/private
+     */
+    const EVENT_PRIVATE_STORAGE_PATH = '';
+
     /** Google Identity Services untuk login pelanggan; jangan commit Env.php. */
     const GOOGLE_OAUTH_CLIENT_ID = '';
     /** Google Maps Javascript API (Places + Maps) untuk memilih titik lokasi alamat. */
@@ -98,6 +105,7 @@ class Env
         'https://vpictura.com',
         'https://www.vpictura.com',
         'https://api.vpictura.com',
+        'https://event.vpictura.com',
     ];
 
     public static function isDev(): bool

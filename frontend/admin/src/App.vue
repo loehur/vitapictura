@@ -26,10 +26,11 @@ const navItems = [
   { key: 'products', label: 'Produk' },
   { key: 'media', label: 'Media' },
   { key: 'customers', label: 'Pelanggan' },
+  { key: 'eventusers', label: 'Event User' },
   { key: 'uploads', label: 'Upload Desain' },
   { key: 'settings', label: 'Pengaturan' },
 ]
-const titles = { dashboard: 'Dashboard', orders: 'Pesanan', categories: 'Kategori', products: 'Produk', media: 'Media', customers: 'Pelanggan', uploads: 'Upload Desain', settings: 'Pengaturan' }
+const titles = { dashboard: 'Dashboard', orders: 'Pesanan', categories: 'Kategori', products: 'Produk', media: 'Media', customers: 'Pelanggan', eventusers: 'Event User', uploads: 'Upload Desain', settings: 'Pengaturan' }
 const currentTitle = computed(() => titles[view.value] || 'Dashboard')
 const firstName = computed(() => (user.value?.name || '').trim().split(/\s+/)[0] || '')
 watch([user, currentTitle], ([u, t]) => { document.title = u ? `${t} · Vita Pictura Admin` : 'Masuk · Vita Pictura Admin' }, { immediate: true })
@@ -66,7 +67,7 @@ async function submitChangePassword() {
   finally { pwBusy.value = false }
 }
 function switchView(key) { view.value = key; navOpen.value = false; loadView(key) }
-function loadView(key) { if (key === 'dashboard') return loadDashboard(); if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers(); if (key === 'uploads') return loadUploads(); if (key === 'settings') return loadSettings() }
+function loadView(key) { if (key === 'dashboard') return loadDashboard(); if (key === 'orders') return loadOrders(); if (key === 'categories') return loadCategories(); if (key === 'products') return loadProducts(); if (key === 'customers') return loadCustomers(); if (key === 'eventusers') return loadEventUsers(); if (key === 'uploads') return loadUploads(); if (key === 'settings') return loadSettings() }
 
 // ---- Orders ----
 const orders = ref([])
@@ -385,6 +386,21 @@ async function toggleCustomerStatus() {
   catch (e) { error.value = e.message } finally { custSaving.value = false }
 }
 
+// ---- Event Users ----
+const eventUsers = ref([])
+const eventUsersLoading = ref(false)
+const eventUsersDefaults = ref({ maxEvents: 3, maxPhotos: 200 })
+const eventUserModal = ref(false)
+const eventUserDetail = ref(null)
+const eventUserLoading = ref(false)
+const eventUserSaving = ref(false)
+const eventUserLimits = ref({ max_events: '', max_photos_per_event: '' })
+async function loadEventUsers() { eventUsersLoading.value = true; try { const d = await api('EventUsers/index'); eventUsers.value = d.items || []; if (d.defaults) eventUsersDefaults.value = d.defaults } catch (e) { error.value = e.message } finally { eventUsersLoading.value = false } }
+async function openEventUser(row) { eventUserModal.value = true; eventUserDetail.value = null; eventUserLoading.value = true; try { const d = await api(`EventUsers/show/${row.id}`); eventUserDetail.value = d; eventUserLimits.value = { max_events: d.max_events ?? '', max_photos_per_event: d.max_photos_per_event ?? '' } } catch (e) { error.value = e.message } finally { eventUserLoading.value = false } }
+function closeEventUser() { eventUserModal.value = false; eventUserDetail.value = null }
+async function saveEventUserLimits() { if (!eventUserDetail.value) return; eventUserSaving.value = true; try { await api(`EventUsers/save-limits/${eventUserDetail.value.id}`, eventUserLimits.value); await openEventUser({ id: eventUserDetail.value.id }); await loadEventUsers(); flash('Limit disimpan.') } catch (e) { error.value = e.message } finally { eventUserSaving.value = false } }
+async function toggleEventUserStatus() { if (!eventUserDetail.value) return; const next = eventUserDetail.value.status === 'blocked' ? 'active' : 'blocked'; if (!window.confirm(next === 'blocked' ? 'Blokir user event ini?' : 'Aktifkan kembali user event ini?')) return; eventUserSaving.value = true; try { await api(`EventUsers/update-status/${eventUserDetail.value.id}`, { status: next }); await openEventUser({ id: eventUserDetail.value.id }); await loadEventUsers(); flash('Status diperbarui.') } catch (e) { error.value = e.message } finally { eventUserSaving.value = false } }
+
 // ---- Uploads ----
 const uploads = ref([])
 const uploadLoading = ref(false)
@@ -468,6 +484,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         <button v-else-if="view === 'categories'" class="primary primary--sm" type="button" @click="openCategory(null)">+ Tambah kategori</button>
         <button v-else-if="view === 'products'" class="primary primary--sm" type="button" @click="openProduct(null)">+ Tambah produk</button>
         <button v-else-if="view === 'customers'" class="ghost--sm" type="button" :disabled="custLoading" @click="loadCustomers">Muat ulang</button>
+        <button v-else-if="view === 'eventusers'" class="ghost--sm" type="button" :disabled="eventUsersLoading" @click="loadEventUsers">Muat ulang</button>
         <button v-else-if="view === 'uploads'" class="ghost--sm" type="button" :disabled="uploadLoading" @click="loadUploads">Muat ulang</button>
       </header>
 
@@ -688,6 +705,35 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
                   <td data-label="Status"><span class="status" :class="c.status === 'active' ? 'status--paid' : 'status--expired'">{{ c.status }}</span></td>
                   <td data-label="Terdaftar">{{ formatDate(c.created_at) }}</td>
                   <td data-label="Aksi"><button class="link" type="button" @click="openCustomer(c)">Detail</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </template>
+
+      <!-- Event user -->
+      <template v-else-if="view === 'eventusers'">
+        <section class="stats">
+          <article class="stat"><span>Total user event</span><strong>{{ eventUsers.length }}</strong></article>
+          <article class="stat"><span>Default event</span><strong>{{ eventUsersDefaults.maxEvents }}</strong></article>
+          <article class="stat"><span>Default foto/event</span><strong>{{ eventUsersDefaults.maxPhotos }}</strong></article>
+        </section>
+        <section class="panel" :aria-busy="eventUsersLoading">
+          <div v-if="eventUsersLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 4" :key="n" class="skeleton skeleton--row"></span></div>
+          <p v-else-if="!eventUsers.length" class="muted">Belum ada user event.</p>
+          <div v-else class="table-wrap">
+            <table class="orders-table">
+              <thead><tr><th>User</th><th>Event</th><th>Foto</th><th>Saldo</th><th>Limit</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="u in eventUsers" :key="u.id">
+                  <td data-label="User"><strong>{{ u.full_name }}</strong><small>{{ u.email }}</small></td>
+                  <td data-label="Event">{{ u.event_count }}</td>
+                  <td data-label="Foto">{{ u.photo_count }}</td>
+                  <td data-label="Saldo">{{ rupiah.format(u.balance) }}</td>
+                  <td data-label="Limit"><small>Event: {{ u.max_events ?? eventUsersDefaults.maxEvents }} · Foto: {{ u.max_photos_per_event ?? eventUsersDefaults.maxPhotos }}</small></td>
+                  <td data-label="Status"><span class="status" :class="u.status === 'active' ? 'status--paid' : 'status--expired'">{{ u.status }}</span></td>
+                  <td data-label="Aksi"><button class="link" type="button" @click="openEventUser(u)">Detail</button></td>
                 </tr>
               </tbody>
             </table>
@@ -1162,6 +1208,66 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         <button class="primary" type="submit" :disabled="tabSaving">{{ tabSaving ? 'Menyimpan…' : 'Simpan' }}</button>
       </div>
     </form>
+  </div>
+
+  <!-- Modal detail event user -->
+  <div v-if="eventUserModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Detail event user" @click.self="closeEventUser">
+    <div class="modal-card modal-card--wide">
+      <div class="modal-head">
+        <h3 v-if="eventUserDetail">{{ eventUserDetail.full_name }} <span class="status" :class="eventUserDetail.status === 'active' ? 'status--paid' : 'status--expired'">{{ eventUserDetail.status }}</span></h3>
+        <h3 v-else>Detail event user</h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="closeEventUser">×</button>
+      </div>
+      <div v-if="eventUserLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 3" :key="n" class="skeleton skeleton--row"></span></div>
+      <template v-else-if="eventUserDetail">
+        <div class="detail-grid">
+          <div><span>Email</span><strong>{{ eventUserDetail.email }}</strong></div>
+          <div><span>Saldo</span><strong>{{ rupiah.format(eventUserDetail.balance) }}</strong></div>
+        </div>
+
+        <h4 class="detail-sub">Limit</h4>
+        <div class="field-row">
+          <label class="field"><span>Maks event (kosong = default {{ eventUsersDefaults.maxEvents }})</span><input v-model="eventUserLimits.max_events" type="number" min="0" placeholder="default"></label>
+          <label class="field"><span>Maks foto/event (kosong = default {{ eventUsersDefaults.maxPhotos }})</span><input v-model="eventUserLimits.max_photos_per_event" type="number" min="0" placeholder="default"></label>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost--sm" type="button" :disabled="eventUserSaving" @click="saveEventUserLimits">Simpan limit</button>
+          <button class="link-danger" type="button" :disabled="eventUserSaving" @click="toggleEventUserStatus">{{ eventUserDetail.status === 'blocked' ? 'Aktifkan kembali' : 'Blokir user' }}</button>
+        </div>
+
+        <h4 class="detail-sub">Event</h4>
+        <div class="table-wrap">
+          <table class="orders-table variant-table">
+            <thead><tr><th>Nama</th><th>Tanggal</th><th>Foto</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr v-for="ev in eventUserDetail.events" :key="ev.id">
+                <td data-label="Nama">{{ ev.name }}</td>
+                <td data-label="Tanggal">{{ ev.event_date }}</td>
+                <td data-label="Foto">{{ ev.photo_count }}</td>
+                <td data-label="Status"><span class="status" :class="ev.status === 'published' ? 'status--paid' : 'status--unpaid'">{{ ev.status }}</span></td>
+              </tr>
+              <tr v-if="!eventUserDetail.events.length"><td colspan="4" class="muted">Belum ada event.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="detail-sub">Riwayat Saldo</h4>
+        <div class="table-wrap">
+          <table class="orders-table variant-table">
+            <thead><tr><th>Tanggal</th><th>Tipe</th><th>Order</th><th>Jumlah</th></tr></thead>
+            <tbody>
+              <tr v-for="l in eventUserDetail.ledger" :key="l.id">
+                <td data-label="Tanggal">{{ formatDateTime(l.created_at) }}</td>
+                <td data-label="Tipe">{{ l.type }}</td>
+                <td data-label="Order">{{ l.order_id || '—' }}</td>
+                <td data-label="Jumlah">{{ rupiah.format(l.amount) }}</td>
+              </tr>
+              <tr v-if="!eventUserDetail.ledger.length"><td colspan="4" class="muted">Belum ada transaksi.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </div>
   </div>
 
   <!-- Modal detail pelanggan -->

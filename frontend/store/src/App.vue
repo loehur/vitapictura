@@ -76,6 +76,16 @@ function popModalHistory() { if (!modalHistory) return; modalHistory = false; su
 function closeLoginModal() { loginOpen.value = false; popModalHistory() }
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
+const eventsOpen = ref(false)
+const eventList = ref([])
+const eventFrom = ref('')
+const eventTo = ref('')
+const eventQuery = ref('')
+const eventLoading = ref(false)
+const eventDetail = ref(null)
+const eventCart = ref({ items: [], total: 0, count: 0 })
+const eventCartCount = computed(() => Number(eventCart.value.count) || 0)
+const checkoutHasProducts = ref(true)
 const customerFirstName = computed(() => (customer.value?.name || '').trim().split(/\s+/)[0] || 'Masuk')
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan')
 const displayProducts = computed(() => activeCategory.value ? allProducts.value.filter((p) => p.category?.slug === activeCategory.value) : allProducts.value)
@@ -114,6 +124,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
 const MEDIA_BASE = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/+$/, '')
 function assetUrl(url) { if (!url) return ''; return /^https?:/i.test(url) ? url : `${MEDIA_BASE}${url}` }
 function apiUrl(path) { return API_BASE ? `${API_BASE}${path}` : `/api${path}` }
+function downloadUrl(id, variant) { return apiUrl('/Customer/Downloads/photo/' + id) + (variant ? '?variant=' + variant : '') }
 async function request(path) {
   const url = apiUrl(path.startsWith('/') ? path : `/Store/Catalog/${path}`)
   const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } })
@@ -431,9 +442,9 @@ async function addCart() {
 }
 async function openOrders() { return navigate('orders') }
 async function openProduct(slug) { return navigate('product', slug) }
-function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false; checkoutOpen.value = false; orderDetailOpen.value = false }
-const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun', checkout: '/checkout' }
-function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : name === 'order' ? `/pesanan/${slug}` : (ROUTE_PATHS[name] || '/') }
+function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false; checkoutOpen.value = false; orderDetailOpen.value = false; eventsOpen.value = false }
+const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun', checkout: '/checkout', events: '/event' }
+function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : name === 'order' ? `/pesanan/${slug}` : name === 'event' ? `/event/${encodeURIComponent(slug || '')}` : (ROUTE_PATHS[name] || '/') }
 function parseRoute(path) {
   const clean = decodeURIComponent(path || '/').replace(/\/+$/, '') || '/'
   if (clean === '/keranjang') return { name: 'cart' }
@@ -442,13 +453,16 @@ function parseRoute(path) {
   if (orderMatch) return { name: 'order', slug: orderMatch[1] }
   if (clean === '/akun') return { name: 'account' }
   if (clean === '/checkout') return { name: 'checkout' }
+  if (clean === '/event') return { name: 'events' }
+  const evMatch = clean.match(/^\/event\/(.+)$/)
+  if (evMatch) return { name: 'event', slug: evMatch[1] }
   const match = clean.match(/^\/produk\/(.+)$/)
   if (match) return { name: 'product', slug: match[1] }
   return { name: 'home' }
 }
 function pushRoute(name, slug) { const path = routePath(name, slug); if (window.location.pathname !== path) window.history.pushState({ name }, '', path) }
 function requireCustomer() { if (!customer.value) { window.history.replaceState({}, '', '/'); startGoogleLogin(); return false } return true }
-async function loadCartView() { if (!requireCustomer()) return false; await loadCart(); resetViews(); cartOpen.value = true; return true }
+async function loadCartView() { if (!requireCustomer()) return false; await loadCart(); await loadEventCart(); resetViews(); cartOpen.value = true; return true }
 async function loadOrdersView() { if (!requireCustomer()) return false; const data = await request('/Customer/Orders/index'); orders.value = data.items; resetViews(); ordersOpen.value = true; return true }
 function safeJson(value) { try { return JSON.parse(value) } catch (e) { return [] } }
 async function loadOrderView(id) {
@@ -475,7 +489,7 @@ async function openOrderDetail(order) {
 }
 function closeOrderDetail() { orderDetailOpen.value = false; orderDetail.value = null; popModalHistory() }
 const canPayOrder = computed(() => !!orderDetail.value && orderDetail.value.status === 'pending_payment' && orderDetail.value.payment_status !== 'paid')
-const isHome = computed(() => !product.value && !cartOpen.value && !ordersOpen.value && !addressBook.value && !checkoutOpen.value)
+const isHome = computed(() => !product.value && !cartOpen.value && !ordersOpen.value && !addressBook.value && !checkoutOpen.value && !eventsOpen.value && !eventDetail.value)
 async function payOrder() {
   if (!orderDetail.value) return
   payingOrder.value = true
@@ -496,6 +510,37 @@ async function loadProductView(slug) {
   optionSelection.value = {}; manualImageKey.value = null; qty.value = 1; noteText.value = ''; fileMethod.value = '1'; linkDrive.value = ''; uploadFiles.value = []; uploadPercent.value = 0; activeTab.value = 0; zoomUrl.value = null
   return true
 }
+// ---- Events ----
+async function loadEventList() {
+  eventLoading.value = true
+  try {
+    const params = new URLSearchParams()
+    if (eventFrom.value) params.set('from', eventFrom.value)
+    if (eventTo.value) params.set('to', eventTo.value)
+    if (eventQuery.value.trim()) params.set('q', eventQuery.value.trim())
+    const qs = params.toString()
+    const data = await request(`/Store/Events${qs ? `?${qs}` : ''}`)
+    eventList.value = data.items || []
+    if (data.from) eventFrom.value = data.from
+    if (data.to) eventTo.value = data.to
+  } catch (e) { error.value = e.message } finally { eventLoading.value = false }
+}
+async function loadEventsView() { resetViews(); eventsOpen.value = true; await loadEventList(); return true }
+async function loadEventView(slug) {
+  try { const data = await request(`/Store/Events/show/${encodeURIComponent(slug)}`); eventDetail.value = data } catch (e) { error.value = e.message; return false }
+  resetViews(); eventsOpen.value = true
+  return true
+}
+async function openEvents() { return navigate('events') }
+async function openEvent(slug) { return navigate('event', slug) }
+async function loadEventCart() { try { eventCart.value = await request('/Customer/EventCart') } catch (e) { eventCart.value = { items: [], total: 0, count: 0 } } }
+async function addEventPhoto(photo, variant) {
+  if (!customer.value) { startGoogleLogin(); return }
+  try { await post('/Customer/EventCart/add', { photo_id: photo.id, variant }); await loadEventCart(); flash('Foto ditambahkan ke keranjang.') } catch (e) { error.value = e.message }
+}
+async function removeEventCartGroup(group) {
+  try { for (const p of group.photos) await post(`/Customer/EventCart/remove/${p.cartId}`); await loadEventCart(); flash('Foto dihapus dari keranjang.') } catch (e) { error.value = e.message }
+}
 async function applyRoute(route) {
   try {
     if (route.name === 'product') return await loadProductView(route.slug)
@@ -504,6 +549,8 @@ async function applyRoute(route) {
     if (route.name === 'order') return await loadOrderView(route.slug)
     if (route.name === 'account') return await loadAccountView()
     if (route.name === 'checkout') return await loadCheckoutView()
+    if (route.name === 'events') return await loadEventsView()
+    if (route.name === 'event') return await loadEventView(route.slug)
     resetViews(); product.value = null; return true
   } catch (e) { error.value = e.message; return false }
 }
@@ -523,9 +570,16 @@ function goAccount() { profileOpen.value = false; return openAddresses() }
 // ---- Checkout ----
 async function loadCheckoutView() {
   if (!requireCustomer()) return false
-  try { const data = await request('/Customer/Addresses/index'); addresses.value = data.items || [] } catch (e) { error.value = e.message; return false }
+  try { await loadCart() } catch (e) {}
+  await loadEventCart()
+  const hasProducts = (cart.value.items || []).length > 0
+  if (hasProducts) {
+    try { const data = await request('/Customer/Addresses/index'); addresses.value = data.items || [] } catch (e) { error.value = e.message; return false }
+  }
   resetViews(); checkoutOpen.value = true
   checkoutQuote.value = null; checkoutRate.value = null
+  checkoutHasProducts.value = hasProducts
+  if (!hasProducts) { await loadQuote(); return true }
   if (!addresses.value.length) return true
   if (!checkoutAddressId.value || !addresses.value.some((a) => a.id === checkoutAddressId.value)) {
     const def = addresses.value.find((a) => a.isDefault) || addresses.value[0]
@@ -535,15 +589,15 @@ async function loadCheckoutView() {
   return true
 }
 async function loadQuote() {
-  if (!checkoutAddressId.value) { checkoutQuote.value = null; return }
+  if (checkoutHasProducts.value && !checkoutAddressId.value) { checkoutQuote.value = null; return }
   checkoutLoading.value = true
-  try { checkoutQuote.value = await post('/Customer/Checkout/quote', { address_id: checkoutAddressId.value }); checkoutRate.value = null }
+  try { checkoutQuote.value = await post('/Customer/Checkout/quote', checkoutHasProducts.value ? { address_id: checkoutAddressId.value } : {}); checkoutRate.value = null }
   catch (e) { error.value = e.message; checkoutQuote.value = null }
   finally { checkoutLoading.value = false }
 }
 function selectCheckoutAddress(id) { checkoutAddressId.value = id; loadQuote() }
 function selectRate(rate) { checkoutRate.value = rate }
-const checkoutSubtotal = computed(() => Number(checkoutQuote.value?.subtotal || 0))
+const checkoutSubtotal = computed(() => Number(checkoutQuote.value?.subtotal || 0) + Number(checkoutQuote.value?.eventSubtotal || 0))
 const checkoutTotal = computed(() => checkoutSubtotal.value + Number(checkoutRate.value?.price || 0))
 function openCheckout() { return navigate('checkout') }
 function loadSnap() {
@@ -569,11 +623,12 @@ async function payWithSnap(pay) {
   })
 }
 async function placeOrder() {
-  if (!checkoutRate.value) { error.value = 'Pilih kurir terlebih dahulu.'; return }
+  if (checkoutHasProducts.value && !checkoutRate.value) { error.value = 'Pilih kurir terlebih dahulu.'; return }
   placingOrder.value = true
   try {
-    const order = await post('/Customer/Checkout/create', { address_id: checkoutAddressId.value, courier_company: checkoutRate.value.company, courier_type: checkoutRate.value.type })
-    await loadCart()
+    const body = checkoutHasProducts.value ? { address_id: checkoutAddressId.value, courier_company: checkoutRate.value.company, courier_type: checkoutRate.value.type } : {}
+    const order = await post('/Customer/Checkout/create', body)
+    await loadCart(); await loadEventCart()
     const pay = await post(`/Customer/Payments/create/${order.id}`)
     checkoutOpen.value = false; checkoutQuote.value = null; checkoutRate.value = null
     await payWithSnap(pay)
@@ -592,6 +647,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
     </button>
     <nav class="site-nav" aria-label="Navigasi utama">
       <button class="nav-link" type="button" :class="{ 'is-active': isHome }" @click="goHome">Catalog</button>
+      <button class="nav-link" type="button" :class="{ 'is-active': eventsOpen }" @click="openEvents">Events</button>
       <button class="nav-link" type="button" :class="{ 'is-active': ordersOpen }" @click="openOrders">Orders</button>
       <button class="nav-link" type="button" :class="{ 'is-active': cartOpen }" @click="openCart">Cart<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
     </nav>
@@ -673,9 +729,27 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <section class="co-section od-items">
             <div v-for="(it, i) in orderDetail?.items || []" :key="i" class="od-item">
               <strong>{{ it.product_name }}</strong>
-              <span v-for="s in it.selections" :key="s.valueId" class="cart-item__choice">{{ s.group }}: {{ s.value }}</span>
-              <span v-if="it.note" class="cart-item__note">Catatan: {{ it.note }}</span>
-              <div class="od-item__row"><span>{{ it.quantity }} pcs</span><strong>{{ rupiah.format(it.total_price) }}</strong></div>
+              <template v-if="it.item_type === 'event_photo'">
+                <span class="cart-item__choice">{{ (it.photos || []).length }} foto</span>
+                <div class="od-photos">
+                  <div v-for="p in it.photos" :key="p.id" class="od-photo">
+                    <img :src="p.previewUrl" :alt="'Foto ' + p.photoId" loading="lazy" draggable="false">
+                    <div class="od-photo__row">
+                      <small>{{ p.variant }}</small>
+                      <a v-if="p.canDownloadStandard" class="link" :href="downloadUrl(p.id, p.variant === 'original' ? 'standard' : '')" target="_blank" rel="noopener">Unduh standar</a>
+                    </div>
+                    <div v-if="p.variant === 'original'" class="od-photo__row">
+                      <a v-if="p.canDownloadOriginal" class="link" :href="downloadUrl(p.id, 'original')" target="_blank" rel="noopener">Unduh original</a>
+                      <small v-else class="muted">Original menunggu diunggah</small>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <span v-for="s in it.selections" :key="s.valueId" class="cart-item__choice">{{ s.group }}: {{ s.value }}</span>
+                <span v-if="it.note" class="cart-item__note">Catatan: {{ it.note }}</span>
+                <div class="od-item__row"><span>{{ it.quantity }} pcs</span><strong>{{ rupiah.format(it.total_price) }}</strong></div>
+              </template>
             </div>
           </section>
 
@@ -700,10 +774,48 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </div>
       </div>
     </template>
+    <template v-else-if="eventDetail">
+      <button class="back link" type="button" @click="navigate('events')">← Event</button>
+      <p class="category">Event</p>
+      <h1>{{ eventDetail.name }}</h1>
+      <p class="muted">{{ formatDate(eventDetail.event_date) }}<template v-if="eventDetail.owner_name"> · {{ eventDetail.owner_name }}</template></p>
+      <p v-if="eventDetail.description" class="description">{{ eventDetail.description }}</p>
+      <div class="event-grid">
+        <div v-for="ph in eventDetail.photos" :key="ph.id" class="event-photo">
+          <img :src="ph.previewUrl" :alt="'Foto ' + ph.id" loading="lazy" draggable="false" @contextmenu.prevent>
+          <div class="event-photo__actions">
+            <button v-if="ph.priceStandard != null" class="cta" type="button" @click="addEventPhoto(ph, 'standard')">Standar {{ rupiah.format(ph.priceStandard) }}</button>
+            <button v-if="ph.priceOriginal != null" class="ghost" type="button" @click="addEventPhoto(ph, 'original')">Original {{ rupiah.format(ph.priceOriginal) }}</button>
+          </div>
+        </div>
+      </div>
+    </template>
+    <template v-else-if="eventsOpen">
+      <p class="category">Event</p>
+      <div class="event-search">
+        <label class="field"><span>Dari</span><input v-model="eventFrom" type="date"></label>
+        <label class="field"><span>Sampai</span><input v-model="eventTo" type="date"></label>
+        <label class="field"><span>Cari</span><input v-model="eventQuery" type="search" placeholder="Nama event" @keyup.enter="loadEventList"></label>
+        <button class="cta" type="button" @click="loadEventList">Cari</button>
+      </div>
+      <p class="section-sub">Rentang maksimal 7 hari (default 7 hari terakhir).</p>
+      <p v-if="eventLoading" class="description">Memuat…</p>
+      <p v-else-if="!eventList.length" class="description">Tidak ada event pada rentang ini.</p>
+      <div v-else class="event-list">
+        <button v-for="ev in eventList" :key="ev.id" class="event-card" type="button" @click="openEvent(ev.slug)">
+          <img v-if="ev.cover_image_url" :src="assetUrl(ev.cover_image_url)" :alt="ev.name" loading="lazy">
+          <span v-else class="event-card__ph">Event</span>
+          <div class="event-card__body">
+            <strong>{{ ev.name }}</strong>
+            <span class="muted">{{ formatDate(ev.event_date) }} · {{ ev.photo_count }} foto</span>
+          </div>
+        </button>
+      </div>
+    </template>
     <template v-else-if="cartOpen">
       <p class="category">Keranjang</p>
 
-      <div v-if="!cart.items.length" class="state">
+      <div v-if="!cart.items.length && !eventCart.items.length" class="state">
         <p class="description">Keranjangmu masih kosong.</p>
         <button class="cta" type="button" @click="goHome">Mulai belanja</button>
       </div>
@@ -737,9 +849,24 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           </div>
         </article>
 
+        <article v-for="grp in eventCart.items" :key="'ev' + grp.eventId" class="cart-item">
+          <div class="cart-item__body">
+            <strong>{{ grp.eventName }} <span class="cart-item__choice">{{ grp.qty }} foto</span></strong>
+            <div class="cart-item__event-photos">
+              <img v-for="p in grp.photos" :key="p.cartId" :src="p.previewUrl" :alt="'Foto ' + p.photoId" loading="lazy" draggable="false">
+            </div>
+            <div class="cart-item__row">
+              <button class="icon-danger" type="button" aria-label="Hapus foto event" title="Hapus" @click="removeEventCartGroup(grp)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+              <strong>{{ rupiah.format(grp.subtotal) }}</strong>
+            </div>
+          </div>
+        </article>
+
         <div class="cart-total">
           <span>Total</span>
-          <strong>{{ rupiah.format(cart.total) }}</strong>
+          <strong>{{ rupiah.format(Number(cart.total) + Number(eventCart.total)) }}</strong>
         </div>
         <button class="cta" type="button" @click="openCheckout">Checkout</button>
       </div>
@@ -816,7 +943,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       <p class="category">Checkout</p>
       <h1>Konfirmasi pesanan</h1>
 
-      <section class="co-section">
+      <section v-if="checkoutHasProducts" class="co-section">
         <div class="co-head"><strong>Alamat pengiriman</strong><button class="link" type="button" @click="navigate('account')">Kelola alamat</button></div>
         <p v-if="!addresses.length" class="description">Belum ada alamat. Tambahkan alamat terlebih dahulu.</p>
         <label v-for="a in addresses" :key="a.id" class="co-address" :class="{ 'is-active': checkoutAddressId === a.id }">
@@ -829,7 +956,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </label>
       </section>
 
-      <section class="co-section">
+      <section v-if="checkoutHasProducts" class="co-section">
         <div class="co-head"><strong>Pengiriman</strong><span v-if="checkoutQuote" class="co-head__meta">{{ checkoutQuote.rates.length }} layanan</span></div>
         <p v-if="checkoutLoading" class="description">Menghitung ongkir…</p>
         <p v-else-if="!checkoutQuote" class="description">Pilih alamat untuk melihat ongkir.</p>
@@ -845,13 +972,18 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         </template>
       </section>
 
+      <section v-if="eventCart.items.length" class="co-section co-summary">
+        <div class="co-head"><strong>Foto Event</strong></div>
+        <div v-for="grp in eventCart.items" :key="'ck' + grp.eventId"><span>{{ grp.eventName }} ({{ grp.qty }} foto)</span><strong>{{ rupiah.format(grp.subtotal) }}</strong></div>
+      </section>
+
       <section class="co-section co-summary">
         <div><span>Subtotal</span><strong>{{ rupiah.format(checkoutSubtotal) }}</strong></div>
-        <div><span>Ongkir</span><strong>{{ rupiah.format(checkoutRate ? checkoutRate.price : 0) }}</strong></div>
+        <div v-if="checkoutHasProducts"><span>Ongkir</span><strong>{{ rupiah.format(checkoutRate ? checkoutRate.price : 0) }}</strong></div>
         <div class="co-total"><span>Total</span><strong>{{ rupiah.format(checkoutTotal) }}</strong></div>
       </section>
 
-      <button class="cta" type="button" :disabled="placingOrder || !checkoutRate" @click="placeOrder">{{ placingOrder ? 'Memproses…' : 'Buat pesanan & bayar' }}</button>
+      <button class="cta" type="button" :disabled="placingOrder || (checkoutHasProducts && !checkoutRate)" @click="placeOrder">{{ placingOrder ? 'Memproses…' : 'Buat pesanan & bayar' }}</button>
     </template>
     <template v-else-if="product">
       <div class="pd">
@@ -1064,9 +1196,13 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </div>
     <nav v-if="!product" class="bottom-nav" aria-label="Navigasi bawah">
-      <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" :aria-current="(!product && !cartOpen && !ordersOpen && !addressBook) ? 'page' : null" @click="goHome">
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook && !eventsOpen && !eventDetail }" :aria-current="(!product && !cartOpen && !ordersOpen && !addressBook && !eventsOpen && !eventDetail) ? 'page' : null" @click="goHome">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg>
         <span>Home</span>
+      </button>
+      <button class="bottom-nav__item" type="button" :class="{ 'is-active': eventsOpen || eventDetail }" :aria-current="(eventsOpen || eventDetail) ? 'page' : null" @click="openEvents">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4M16 2v4"/></svg>
+        <span>Events</span>
       </button>
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': cartOpen }" :aria-current="cartOpen ? 'page' : null" @click="openCart">
         <span class="nav-icon-wrap">
