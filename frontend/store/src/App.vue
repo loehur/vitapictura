@@ -674,6 +674,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             <div v-for="(it, i) in orderDetail?.items || []" :key="i" class="od-item">
               <strong>{{ it.product_name }}</strong>
               <span v-for="s in it.selections" :key="s.valueId" class="cart-item__choice">{{ s.group }}: {{ s.value }}</span>
+              <span v-if="it.note" class="cart-item__note">Catatan: {{ it.note }}</span>
               <div class="od-item__row"><span>{{ it.quantity }} pcs</span><strong>{{ rupiah.format(it.total_price) }}</strong></div>
             </div>
           </section>
@@ -682,6 +683,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             <div><span>Penerima</span><strong>{{ orderDetail.recipient.recipientName }}</strong></div>
             <div><span>Telepon</span><strong>{{ orderDetail.recipient.recipientPhone }}</strong></div>
             <div><span>Alamat</span><strong>{{ orderDetail.recipient.addressLine }}</strong></div>
+            <div v-if="orderDetail.recipient.notes"><span>Catatan</span><strong>{{ orderDetail.recipient.notes }}</strong></div>
           </section>
 
           <section class="co-section co-summary">

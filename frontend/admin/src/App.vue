@@ -1029,7 +1029,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
             <thead><tr><th>Produk</th><th>Pilihan</th><th>Qty</th><th>Harga</th><th>Total</th></tr></thead>
             <tbody>
               <tr v-for="it in orderDetail.items" :key="it.id">
-                <td data-label="Produk">{{ it.product_name }}</td>
+                <td data-label="Produk">{{ it.product_name }}<small v-if="it.note" class="detail-note">Catatan: {{ it.note }}</small></td>
                 <td data-label="Pilihan"><span v-for="s in it.selections" :key="s.valueId" class="detail-chip">{{ s.group }}: {{ s.value }}</span></td>
                 <td data-label="Qty">{{ it.quantity }}</td>
                 <td data-label="Harga">{{ rupiah.format(it.unit_price) }}</td>
@@ -1045,6 +1045,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           <span>{{ orderDetail.recipient.recipientPhone }}</span>
           <span>{{ orderDetail.recipient.addressLine }}</span>
           <span>{{ [orderDetail.recipient.areaName, orderDetail.recipient.postalCode].filter(Boolean).join(' · ') }}</span>
+          <span v-if="orderDetail.recipient.notes">Catatan: {{ orderDetail.recipient.notes }}</span>
         </div>
 
         <h4 class="detail-sub">Pembayaran</h4>
@@ -1097,7 +1098,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         <div><span>Pelanggan</span><strong>{{ shipOrder.customer_name }}</strong></div>
         <div><span>Kurir</span><strong>{{ shipOrder.courier_company ? `${shipOrder.courier_company} ${shipOrder.courier_type || ''}` : 'Jemput ke Toko' }}</strong></div>
         <div><span>Penerima</span><strong>{{ shipOrder.recipient?.recipientName }}</strong><small>{{ shipOrder.recipient?.recipientPhone }}</small></div>
-        <div><span>Alamat</span><strong>{{ shipOrder.recipient?.addressLine }}</strong><small>{{ [shipOrder.recipient?.areaName, shipOrder.recipient?.postalCode].filter(Boolean).join(' · ') }}</small></div>
+        <div><span>Alamat</span><strong>{{ shipOrder.recipient?.addressLine }}</strong><small>{{ [shipOrder.recipient?.areaName, shipOrder.recipient?.postalCode].filter(Boolean).join(' · ') }}</small><small v-if="shipOrder.recipient?.notes">Catatan: {{ shipOrder.recipient.notes }}</small></div>
       </div>
       <p class="ship-warning">Setelah diproses, status otomatis menjadi <strong>Dikirim</strong> dan tidak dapat dikembalikan. Kurir &amp; resi dibuat otomatis oleh Biteship. Pastikan pesanan sudah siap dikirim.</p>
       <label class="field"><span>Ketik <b>KIRIM</b> untuk mengaktifkan tombol</span>

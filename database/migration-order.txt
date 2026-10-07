@@ -15,5 +15,6 @@ Apply against a fresh Vita Pictura database, in this exact order:
 013_media_library.sql
 014_order_admin_cs.sql
 015_payments_expiry.sql
+016_order_item_note.sql
 
 Run the demo seed files only in local development. Never run them in staging or production.

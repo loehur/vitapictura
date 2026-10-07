@@ -9,8 +9,8 @@ class Orders extends Controller {
   $ids=array_map(fn($r)=>(int)$r['id'],$rows);
   $itemsByOrder=[];
   if(!empty($ids)){
-   $its=$this->db()->query('SELECT order_id,product_name,quantity,unit_price,total_price FROM vp_order_items WHERE order_id IN ('.implode(',',$ids).') ORDER BY id')->result_array()?:[];
-   foreach($its as $it){$itemsByOrder[(int)$it['order_id']][]=['product_name'=>$it['product_name'],'quantity'=>(int)$it['quantity'],'unit_price'=>(float)$it['unit_price'],'total_price'=>(float)$it['total_price']];}
+   $its=$this->db()->query('SELECT order_id,product_name,note,quantity,unit_price,total_price FROM vp_order_items WHERE order_id IN ('.implode(',',$ids).') ORDER BY id')->result_array()?:[];
+   foreach($its as $it){$itemsByOrder[(int)$it['order_id']][]=['product_name'=>$it['product_name'],'note'=>$it['note'],'quantity'=>(int)$it['quantity'],'unit_price'=>(float)$it['unit_price'],'total_price'=>(float)$it['total_price']];}
   }
   foreach($rows as &$r){
    $r['id']=(int)$r['id'];
@@ -59,7 +59,7 @@ class Orders extends Controller {
   $o['discount_shipping']=(float)($o['discount_shipping']??0);$o['discount_items']=(float)($o['discount_items']??0);$o['discount_promo']=(float)($o['discount_promo']??0);
   $o['available_collection_method']=json_decode((string)($o['available_collection_method']??''),true)?:[];
   $o['recipient']=json_decode((string)($o['recipient_snapshot']??''),true)?:[];unset($o['recipient_snapshot']);
-  $items=$this->db()->query('SELECT id,product_name,selections_snapshot,quantity,unit_price,total_price FROM vp_order_items WHERE order_id=? ORDER BY id',[$id])->result_array()?:[];
+  $items=$this->db()->query('SELECT id,product_name,note,selections_snapshot,quantity,unit_price,total_price FROM vp_order_items WHERE order_id=? ORDER BY id',[$id])->result_array()?:[];
   foreach($items as &$it){$it['id']=(int)$it['id'];$it['quantity']=(int)$it['quantity'];$it['unit_price']=(float)$it['unit_price'];$it['total_price']=(float)$it['total_price'];$it['selections']=json_decode((string)($it['selections_snapshot']??''),true)?:[];unset($it['selections_snapshot']);}
   unset($it);$o['items']=$items;
   $p=$this->db()->query('SELECT status,transaction_id,payment_type,gross_amount,paid_at,expiry_time FROM vp_payments WHERE order_id=? LIMIT 1',[$id])->row_array();
