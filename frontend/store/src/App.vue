@@ -6,6 +6,7 @@ const catalog = ref({ categories: [], featured: [] })
 const allProducts = ref([])
 const activeCategory = ref(null)
 const product = ref(null)
+const hasDescriptionTab = computed(() => (product.value?.tabs || []).some((t) => String(t.title || '').trim().toLowerCase() === 'deskripsi'))
 const loading = ref(true)
 const error = ref('')
 const catalogError = ref('')
@@ -723,8 +724,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
     </template>
     <template v-else-if="addressBook">
-      <p class="category">Akun</p>
-      <h1>Alamat tersimpan</h1>
+      <p class="category">Daftar Alamat</p>
       <button class="cta" type="button" @click="openAddressModal">+ Tambah lokasi</button>
 
       <p v-if="!addresses.length" class="description">Belum ada alamat tersimpan.</p>
@@ -933,7 +933,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <div class="pd-tabbody" v-html="product.tabs[activeTab]?.html || ''"></div>
       </div>
 
-      <section v-if="product.description" class="pd-desc">
+      <section v-if="product.description && !hasDescriptionTab" class="pd-desc">
         <h2>Deskripsi</h2>
         <p class="pd-desc__body">{{ product.description }}</p>
       </section>

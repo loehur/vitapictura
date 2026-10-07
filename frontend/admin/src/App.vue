@@ -210,7 +210,7 @@ async function openProduct(row) {
   } else { prodForm.value = emptyProduct(); prodMedia.value = [] }
   prodModal.value = true
 }
-function closeProduct() { prodModal.value = false; prodMedia.value = []; variantModal.value = false; variants.value = [] }
+function closeProduct() { prodModal.value = false; prodMedia.value = []; variantModal.value = false; variants.value = []; tabsModal.value = false; tabsList.value = []; tabModal.value = false }
 function onProductName() { if (!prodForm.value.id) prodForm.value.slug = slugify(prodForm.value.name) }
 async function saveProduct() {
   prodSaving.value = true
@@ -347,6 +347,21 @@ async function saveValue() {
   } catch (e) { error.value = e.message } finally { valueSaving.value = false }
 }
 async function removeValue(value) { if (!window.confirm(`Hapus nilai "${value.name}"?`)) return; try { await api(`Options/remove-value/${value.id}`, {}); await loadVariants(); flash('Nilai dihapus.') } catch (e) { error.value = e.message } }
+
+// ---- Product detail tabs ----
+const tabsModal = ref(false)
+const tabsList = ref([])
+const tabsLoading = ref(false)
+const tabsProduct = ref({ id: null, name: '' })
+const tabModal = ref(false)
+const tabSaving = ref(false)
+const tabForm = ref({ id: null, product_id: null, title: '', content_html: '' })
+function openTabs() { if (!prodForm.value.id) return; tabsProduct.value = { id: prodForm.value.id, name: prodForm.value.name }; tabsModal.value = true; loadTabs() }
+function closeTabs() { tabsModal.value = false; tabsList.value = []; tabModal.value = false }
+async function loadTabs() { tabsLoading.value = true; try { tabsList.value = (await api(`Products/tabs/${tabsProduct.value.id}`)).items || [] } catch (e) { error.value = e.message } finally { tabsLoading.value = false } }
+function openTab(tab) { tabForm.value = tab ? { id: tab.id, product_id: tabsProduct.value.id, title: tab.title, content_html: tab.content_html || '' } : { id: null, product_id: tabsProduct.value.id, title: '', content_html: '' }; tabModal.value = true }
+async function saveTab() { tabSaving.value = true; try { await api(tabForm.value.id ? `Products/save-tab/${tabForm.value.id}` : 'Products/save-tab', { ...tabForm.value }); tabModal.value = false; await loadTabs(); flash('Tab disimpan.') } catch (e) { error.value = e.message } finally { tabSaving.value = false } }
+async function removeTab(tab) { if (!window.confirm(`Hapus tab "${tab.title}"?`)) return; try { await api(`Products/remove-tab/${tab.id}`, {}); await loadTabs(); flash('Tab dihapus.') } catch (e) { error.value = e.message } }
 
 // ---- Customers ----
 const customers = ref([])
@@ -838,6 +853,10 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           <span>Varian</span>
           <button class="ghost--sm variant-open" type="button" @click="openVariants">Kelola varian (grup &amp; nilai)</button>
         </div>
+        <div v-if="prodForm.id" class="field span-2">
+          <span>Tab deskripsi</span>
+          <button class="ghost--sm variant-open" type="button" @click="openTabs">Kelola tab deskripsi (judul &amp; isi)</button>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="ghost--sm" type="button" @click="closeProduct">Batal</button>
@@ -1094,6 +1113,49 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </template>
       </div>
     </div>
+  </div>
+
+  <!-- Modal tab deskripsi -->
+  <div v-if="tabsModal" class="modal-overlay modal-overlay--top" role="dialog" aria-modal="true" aria-label="Kelola tab deskripsi" @click.self="closeTabs">
+    <div class="modal-card modal-card--wide">
+      <div class="modal-head">
+        <h3>Tab Deskripsi — {{ tabsProduct.name }}</h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="closeTabs">×</button>
+      </div>
+      <div class="variant-toolbar">
+        <button class="primary primary--sm" type="button" @click="openTab(null)">+ Tab</button>
+      </div>
+      <div v-if="tabsLoading" class="skeleton-list" aria-hidden="true"><span v-for="n in 3" :key="n" class="skeleton skeleton--row"></span></div>
+      <p v-else-if="!tabsList.length" class="muted">Belum ada tab. Tambahkan tab deskripsi.</p>
+      <div v-else class="table-wrap">
+        <table class="orders-table">
+          <thead><tr><th>Judul</th><th>Urutan</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="t in tabsList" :key="t.id">
+              <td data-label="Judul">{{ t.title }}</td>
+              <td data-label="Urutan">{{ t.sort_order }}</td>
+              <td data-label="Aksi"><span class="row-actions"><button class="link" type="button" @click="openTab(t)">Edit</button><button class="link-danger" type="button" @click="removeTab(t)">Hapus</button></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal form tab deskripsi -->
+  <div v-if="tabModal" class="modal-overlay modal-overlay--top2" role="dialog" aria-modal="true" aria-label="Form tab deskripsi" @click.self="tabModal = false">
+    <form class="modal-card modal-card--wide" @submit.prevent="saveTab">
+      <div class="modal-head">
+        <h3>{{ tabForm.id ? 'Edit tab' : 'Tambah tab' }}</h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="tabModal = false">×</button>
+      </div>
+      <label class="field"><span>Judul tab</span><input v-model="tabForm.title" required placeholder="Contoh: Ukuran Pas Foto"></label>
+      <label class="field"><span>Isi tab (HTML)</span><textarea v-model="tabForm.content_html" rows="10" placeholder="&lt;p&gt;Tulis di sini...&lt;/p&gt;"></textarea></label>
+      <div class="modal-actions">
+        <button class="ghost--sm" type="button" @click="tabModal = false">Batal</button>
+        <button class="primary" type="submit" :disabled="tabSaving">{{ tabSaving ? 'Menyimpan…' : 'Simpan' }}</button>
+      </div>
+    </form>
   </div>
 
   <!-- Modal detail pelanggan -->
