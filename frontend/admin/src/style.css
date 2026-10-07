@@ -1100,6 +1100,23 @@
   .ta-r { text-align: right; }
   .text-danger { color: var(--color-danger); }
   .text-success { color: var(--color-success); }
+  .ship-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+  }
+  .ship-advanced {
+    margin-top: 0.8rem;
+  }
+  .ship-advanced > summary {
+    cursor: pointer;
+    color: var(--color-muted);
+    font-size: 0.82rem;
+  }
+  .ship-advanced[open] > summary {
+    margin-bottom: 0.5rem;
+  }
   .settings-form {
     display: grid;
     gap: 0.8rem;

@@ -94,6 +94,24 @@ class Orders extends Controller {
   $this->success(['status'=>$status,'history'=>$history],'Tracking loaded');
  }
 
+ /** Ambil metode pengiriman (pickup/drop-off) untuk order dari Biteship, simpan & kembalikan. */
+ public function methods($id=null):void{
+  $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$this->admin();$id=(int)$id;
+  $order=$this->db()->query('SELECT * FROM vp_orders WHERE id=? LIMIT 1',[$id])->row_array();
+  if(!$order)$this->error('Order not found',404);
+  if(empty($order['courier_company'])||empty($order['courier_type']))$this->error('Pesanan ini tanpa kurir (Jemput ke Toko)',422);
+  $recipient=json_decode((string)$order['recipient_snapshot'],true)?:[];
+  $dest=['area_id'=>(string)($recipient['areaId']??''),'latitude'=>isset($recipient['latitude'])?(float)$recipient['latitude']:null,'longitude'=>isset($recipient['longitude'])?(float)$recipient['longitude']:null];
+  $items=$this->db()->query('SELECT oi.quantity,oi.total_price,p.name,p.weight_grams,p.length_mm,p.width_mm,p.height_mm FROM vp_order_items oi INNER JOIN vp_product_configurations c ON c.id=oi.configuration_id INNER JOIN vp_products p ON p.id=c.product_id WHERE oi.order_id=?',[$id])->result_array()?:[];
+  $bItems=array_map(fn($it)=>['name'=>(string)$it['name'],'description'=>'Vita Pictura','value'=>(float)$it['total_price'],'length'=>max(1,(int)$it['length_mm']),'width'=>max(1,(int)$it['width_mm']),'height'=>max(1,(int)$it['height_mm']),'weight'=>max(1,(int)$it['weight_grams']),'quantity'=>(int)$it['quantity']],$items);
+  try{$rates=Biteship::quote($dest,$bItems);}catch(\Throwable $e){$this->error($e->getMessage(),422);}
+  $methods=[];
+  foreach($rates as $r){if(($r['company']??'')===(string)$order['courier_company']&&($r['type']??'')===(string)$order['courier_type']){$m=$r['available_collection_method']??[];if(is_array($m))$methods=array_values($m);break;}}
+  $now=$GLOBALS['now']??date('Y-m-d H:i:s');
+  $this->db()->update('vp_orders',['available_collection_method'=>json_encode($methods),'updated_at'=>$now],['id'=>$id]);
+  $this->success(['methods'=>$methods],'Metode pengiriman dimuat');
+ }
+
  public function mark_paid($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$this->admin();$id=(int)$id;
   $order=$this->db()->query('SELECT id,order_number FROM vp_orders WHERE id=? LIMIT 1',[$id])->row_array();

@@ -134,6 +134,8 @@ async function cancelOrderById(order) { const note = window.prompt('Alasan pemba
 async function bookOrderWith(order, method) { const label = method ? `metode ${method}` : 'Biteship'; if (!window.confirm(`Buat order pengiriman (${label})?`)) return; cardBusy.value = order.id; savingOrder.value = true; try { await api(`Orders/book/${order.id}`, { collection_method: method || '' }); if (orderModal.value && orderDetail.value?.id === order.id) await openOrder({ id: order.id }); await loadOrders(); flash('Pesanan dikirim (Biteship).') } catch (e) { error.value = e.message } finally { cardBusy.value = null; savingOrder.value = false } }
 async function loadTracking(order) { tracking.value = { ...tracking.value, [order.id]: { loading: true, history: [], status: '', error: '' } }; try { const d = await api(`Orders/tracking/${order.id}`, {}); tracking.value = { ...tracking.value, [order.id]: { loading: false, history: d.history || [], status: d.status || '', error: '' } }; await loadOrders() } catch (e) { tracking.value = { ...tracking.value, [order.id]: { loading: false, history: [], status: '', error: e.message } } } }
 async function refreshTracking(order) { if (!order) return; savingOrder.value = true; try { const d = await api(`Orders/tracking/${order.id}`, {}); if (orderDetail.value && orderDetail.value.id === order.id) { orderDetail.value = { ...orderDetail.value, delivery: { ...(orderDetail.value.delivery || {}), tracking_history: d.history || [], status: d.status || orderDetail.value.delivery?.status } }; } await loadOrders(); flash('Tracking diperbarui.') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
+const shippingMethodsBusy = ref(false)
+async function fetchMethods(order) { if (!order) return; shippingMethodsBusy.value = true; try { const d = await api(`Orders/methods/${order.id}`, {}); if (orderDetail.value && orderDetail.value.id === order.id) { orderDetail.value = { ...orderDetail.value, available_collection_method: d.methods || [] }; } await loadOrders(); flash((d.methods && d.methods.length) ? 'Pilih metode pengiriman.' : 'Tidak ada metode tersedia — pakai Input manual.') } catch (e) { error.value = e.message } finally { shippingMethodsBusy.value = false } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) }
 
 // ---- Categories ----
@@ -1022,31 +1024,34 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </div>
         <div class="detail-actions-line">
           <button v-if="orderDetail.payment?.status !== 'paid'" class="ghost--sm" type="button" :disabled="savingOrder" @click="markPaid">Tandai lunas</button>
-          <template v-if="orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled' && orderDetail.status !== 'expired'">
-            <template v-if="orderDetail.available_collection_method && orderDetail.available_collection_method.length">
-              <button v-for="m in orderDetail.available_collection_method" :key="m" class="ghost--sm" type="button" :disabled="savingOrder" @click="bookOrderWith(orderDetail, m)">Kirim · {{ m }}</button>
-            </template>
-            <button v-else-if="orderDetail.courier_company" class="ghost--sm" type="button" :disabled="savingOrder" @click="bookOrderWith(orderDetail, '')">Booking Biteship</button>
-            <button class="ghost--sm" type="button" :disabled="savingOrder" @click="completeOrder">Tandai selesai</button>
-            <button class="link-danger" type="button" :disabled="savingOrder" @click="cancelOrder">Batalkan</button>
-          </template>
+          <button v-if="orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled' && orderDetail.status !== 'expired'" class="link-danger" type="button" :disabled="savingOrder" @click="cancelOrder">Batalkan</button>
           <span v-if="orderDetail.admin_note" class="detail-note">Catatan: {{ orderDetail.admin_note }}</span>
         </div>
 
         <h4 class="detail-sub">Pengiriman</h4>
-        <div class="field-row">
-          <label class="field"><span>Kurir</span><input v-model="deliveryForm.courier_company" placeholder="jne / jnt / sicepat"></label>
-          <label class="field"><span>Layanan</span><input v-model="deliveryForm.courier_service" placeholder="REG"></label>
-          <label class="field"><span>No. Resi</span><input v-model="deliveryForm.tracking_number"></label>
-          <label class="field"><span>Status kirim</span>
-            <select v-model="deliveryForm.status"><option value="pending">Pending</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select>
-          </label>
+        <div class="detail-grid">
+          <div><span>Kurir</span><strong>{{ orderDetail.courier_company ? `${orderDetail.courier_company} ${orderDetail.courier_type || ''}` : 'Jemput ke Toko' }}</strong><small v-if="orderDetail.courier_service">{{ orderDetail.courier_service }}</small></div>
+          <div v-if="orderDetail.delivery?.tracking_number"><span>No. Resi</span><strong>{{ orderDetail.delivery.tracking_number }}</strong></div>
+          <div v-if="orderDetail.delivery?.collection_method"><span>Metode</span><strong>{{ orderDetail.delivery.collection_method }}</strong></div>
+          <div v-if="orderDetail.delivery?.status"><span>Status kirim</span><strong>{{ orderDetail.delivery.status }}</strong></div>
         </div>
-        <div v-if="orderDetail.delivery && orderDetail.delivery.biteship_order_id" class="detail-actions-line">
-          <button class="ghost--sm" type="button" :disabled="savingOrder" @click="refreshTracking(orderDetail)">Tarik Tracking Biteship</button>
-          <span v-if="orderDetail.delivery.status" class="muted">Status: {{ orderDetail.delivery.status }}</span>
-          <span v-if="orderDetail.delivery.collection_method" class="muted">Metode: {{ orderDetail.delivery.collection_method }}</span>
+
+        <div v-if="orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled' && orderDetail.status !== 'expired'" class="ship-actions">
+          <template v-if="!orderDetail.courier_company">
+            <button class="primary" type="button" :disabled="savingOrder" @click="completeOrder">Selesai / Siap Jemput</button>
+          </template>
+          <template v-else-if="orderDetail.status === 'shipped'">
+            <button class="ghost--sm" type="button" :disabled="savingOrder" @click="refreshTracking(orderDetail)">Tarik Tracking</button>
+            <button class="primary" type="button" :disabled="savingOrder" @click="completeOrder">Tandai Selesai</button>
+          </template>
+          <template v-else>
+            <template v-if="orderDetail.available_collection_method && orderDetail.available_collection_method.length">
+              <button v-for="m in orderDetail.available_collection_method" :key="m" class="primary" type="button" :disabled="savingOrder" @click="bookOrderWith(orderDetail, m)">Kirim · {{ m }}</button>
+            </template>
+            <button v-else class="primary" type="button" :disabled="shippingMethodsBusy || savingOrder" @click="fetchMethods(orderDetail)">{{ shippingMethodsBusy ? 'Memuat metode…' : 'Kirim' }}</button>
+          </template>
         </div>
+
         <div v-if="orderDetail.delivery?.tracking_history && orderDetail.delivery.tracking_history.length" class="order-track-list">
           <div v-for="(h, i) in orderDetail.delivery.tracking_history" :key="i" class="order-track">
             <strong>{{ h.status }}</strong>
@@ -1054,9 +1059,24 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
             <span>{{ h.note }}</span>
           </div>
         </div>
+
+        <details class="ship-advanced">
+          <summary>Input manual (kurir / resi) — lanjutan</summary>
+          <div class="field-row">
+            <label class="field"><span>Kurir</span><input v-model="deliveryForm.courier_company" placeholder="jne / jnt / sicepat"></label>
+            <label class="field"><span>Layanan</span><input v-model="deliveryForm.courier_service" placeholder="REG"></label>
+            <label class="field"><span>No. Resi</span><input v-model="deliveryForm.tracking_number"></label>
+            <label class="field"><span>Status kirim</span>
+              <select v-model="deliveryForm.status"><option value="pending">Pending</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select>
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button class="primary" type="button" :disabled="savingOrder" @click="saveDelivery">Simpan pengiriman</button>
+          </div>
+        </details>
+
         <div class="modal-actions">
           <button class="ghost--sm" type="button" @click="closeOrder">Tutup</button>
-          <button class="primary" type="button" :disabled="savingOrder" @click="saveDelivery">Simpan pengiriman</button>
         </div>
       </template>
     </div>
