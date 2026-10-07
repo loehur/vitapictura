@@ -1,6 +1,7 @@
 const API_BASE = '/api/Admin/Media'
 
 async function parseResponse(response) {
+  if (response.status === 401) { window.location.reload(); throw new Error('Unauthorized') }
   const payload = await response.json().catch(() => null)
   if (!response.ok || !payload?.status) {
     throw new Error(payload?.message || 'Request media gagal diproses.')
@@ -80,6 +81,7 @@ export function uploadMediaWithProgress(file, folderId = 0, onProgress) {
     }
 
     xhr.onload = () => {
+      if (xhr.status === 401) { window.location.reload(); reject(new Error('Unauthorized')); return }
       let payload = null
       try { payload = JSON.parse(xhr.responseText) } catch (e) { payload = null }
       if (xhr.status >= 200 && xhr.status < 300 && payload?.status) {

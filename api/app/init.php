@@ -108,7 +108,10 @@ date_default_timezone_set('Asia/Jakarta');
 $GLOBALS['now'] = date('Y-m-d H:i:s');
 
 if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.gc_maxlifetime', '604800');
+    $sessionLifetime = defined('Env::SESSION_LIFETIME') ? (int) \Env::SESSION_LIFETIME : 604800;
+    $customerLifetime = defined('Env::CUSTOMER_SESSION_LIFETIME') ? (int) \Env::CUSTOMER_SESSION_LIFETIME : 2592000;
+    // Sesi server harus hidup selama cookie terpanjang agar tidak dihapus gc.
+    ini_set('session.gc_maxlifetime', (string) max($sessionLifetime, $customerLifetime, 1));
 
     $https = (
         (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
@@ -118,7 +121,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
     // SameSite=None + Secure needed when admin frontend origin != API host (credentials fetch).
     session_set_cookie_params([
-        'lifetime' => 604800,
+        'lifetime' => $sessionLifetime > 0 ? $sessionLifetime : 0,
         'path' => '/',
         'httponly' => true,
         'secure' => $https,

@@ -35,6 +35,9 @@ watch([user, currentTitle], ([u, t]) => { document.title = u ? `${t} · Vita Pic
 
 async function api(path, body) {
   const r = await fetch(`/api/Admin/${path}`, { method: body ? 'POST' : 'GET', credentials: 'include', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
+  // Sesi berakhir (401) padahal sudah login → muat ulang halaman (kembali ke layar masuk)
+  // alih-alih menampilkan toast "Unauthorized".
+  if (r.status === 401 && user.value) { window.location.reload(); throw new Error('Unauthorized') }
   const p = await r.json()
   if (!r.ok || !p.status) throw new Error(p.message)
   return p.data

@@ -111,12 +111,14 @@ function apiUrl(path) { return API_BASE ? `${API_BASE}${path}` : `/api${path}` }
 async function request(path) {
   const url = apiUrl(path.startsWith('/') ? path : `/Store/Catalog/${path}`)
   const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } })
+  if (response.status === 401 && customer.value) { window.location.reload(); throw new Error('Unauthorized') }
   const payload = await response.json()
   if (!response.ok || !payload.status) throw new Error(payload.message || 'Tidak dapat memuat katalog.')
   return payload.data
 }
 async function post(path, body) {
   const response = await fetch(apiUrl(path), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body || {}) })
+  if (response.status === 401 && customer.value) { window.location.reload(); throw new Error('Unauthorized') }
   const payload = await response.json()
   if (!response.ok || !payload.status) throw new Error(payload.message || 'Terjadi kesalahan.')
   return payload.data

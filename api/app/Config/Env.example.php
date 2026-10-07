@@ -66,6 +66,14 @@ class Env
     const ORDER_EXPIRY_HOURS = 25;
 
     /**
+     * Umur sesi login (detik).
+     *   SESSION_LIFETIME          = admin / sesi umum (default 7 hari).
+     *   CUSTOMER_SESSION_LIFETIME = sesi pelanggan storefront (default 30 hari).
+     */
+    const SESSION_LIFETIME = 604800;
+    const CUSTOMER_SESSION_LIFETIME = 2592000;
+
+    /**
      * Database credentials per environment.
      * Index 0 = database utama.
      */
