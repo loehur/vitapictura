@@ -580,9 +580,9 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <span class="brand-name">Vita Pictura</span>
       </button>
       <nav class="site-nav" aria-label="Navigasi utama">
-        <button class="nav-link" type="button" @click="goHome">Katalog</button>
-        <button class="nav-link" type="button" @click="openOrders">Pesanan</button>
-        <button class="nav-link" type="button" @click="openCart">Keranjang<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
+        <button class="nav-link" type="button" @click="goHome">Catalog</button>
+        <button class="nav-link" type="button" @click="openOrders">Orders</button>
+        <button class="nav-link" type="button" @click="openCart">Cart<span v-if="cartCount" class="badge">{{ cartCount }}</span></button>
       </nav>
       <div class="header-actions">
         <div class="profile-menu">
@@ -595,11 +595,11 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <div v-if="profileOpen" class="profile-dropdown" role="menu">
             <button class="profile-dropdown__item" type="button" role="menuitem" @click="goAccount">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
-              <span>Lokasi</span>
+              <span>Addresses</span>
             </button>
             <button class="profile-dropdown__item profile-dropdown__item--danger" type="button" role="menuitem" @click="logoutCustomer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-              <span>Keluar</span>
+              <span>Logout</span>
             </button>
           </div>
         </div>
@@ -1045,22 +1045,22 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
     <nav v-if="!product" class="bottom-nav" aria-label="Navigasi bawah">
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': !product && !cartOpen && !ordersOpen && !addressBook }" :aria-current="(!product && !cartOpen && !ordersOpen && !addressBook) ? 'page' : null" @click="goHome">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg>
-        <span>Beranda</span>
+        <span>Home</span>
       </button>
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': cartOpen }" :aria-current="cartOpen ? 'page' : null" @click="openCart">
         <span class="nav-icon-wrap">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L21 7H5"/></svg>
           <span v-if="cartCount" class="badge">{{ cartCount }}</span>
         </span>
-        <span>Keranjang</span>
+        <span>Cart</span>
       </button>
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': ordersOpen }" :aria-current="ordersOpen ? 'page' : null" @click="openOrders">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-        <span>Pesanan</span>
+        <span>Orders</span>
       </button>
       <button class="bottom-nav__item" type="button" :class="{ 'is-active': addressBook }" :aria-current="addressBook ? 'page' : null" @click="customer ? openAddresses() : startGoogleLogin()">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
-        <span>Akun</span>
+        <span>Account</span>
       </button>
     </nav>
   </main>

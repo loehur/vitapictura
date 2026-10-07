@@ -46,7 +46,11 @@
     min-height: 100svh;
     font-family: var(--font-sans);
     color: var(--color-ink);
-    background: var(--color-canvas);
+    background-color: var(--color-canvas);
+    background-image: radial-gradient(circle at top right, var(--color-brand-200), transparent 42%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: 100% 100%;
     -webkit-font-smoothing: antialiased;
   }
   img {
@@ -76,7 +80,6 @@
     max-width: 80rem;
     margin-inline: auto;
     padding: 1.25rem 1.25rem 6.5rem;
-    background: radial-gradient(circle at top right, var(--color-brand-200), transparent 42%), var(--color-canvas);
   }
   @media (min-width: 48rem) {
     .app-shell {
