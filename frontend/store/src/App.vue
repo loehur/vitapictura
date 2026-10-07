@@ -914,10 +914,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <p class="eyebrow">Cetak momen terbaikmu</p>
           <h1>Cerita yang bisa disentuh.</h1>
           <p class="description">Produk personal untuk hadiah, kenangan, dan ruang favorit. Pilih produk, atur desain, kami cetak dan kirim.</p>
-          <div class="hero-actions">
-            <button class="cta" type="button" @click="scrollToCatalog">Mulai buat sekarang</button>
-            <button class="ghost" type="button" @click="scrollToCatalog">Lihat katalog</button>
-          </div>
         </div>
         <div class="hero-art" aria-hidden="true">
           <span class="hero-card hero-card--a"></span>

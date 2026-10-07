@@ -341,8 +341,8 @@
   }
   @media (min-width: 48rem) {
     .hero {
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: 3rem;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 2.25rem;
     }
   }
   .hero-copy h1 {
@@ -390,7 +390,7 @@
     position: relative;
     display: none;
     width: 100%;
-    max-width: 30rem;
+    max-width: 21rem;
     aspect-ratio: 1 / 1;
     margin-inline: auto;
   }
