@@ -16,17 +16,26 @@ function resolveAllowedOrigin(): ?string
 
     $allowedOrigins = defined('Env::ALLOWED_ORIGINS') ? \Env::ALLOWED_ORIGINS : [];
     $parsedOrigin = parse_url($origin);
+    $originScheme = strtolower($parsedOrigin['scheme'] ?? 'http');
     $originHost = strtolower($parsedOrigin['host'] ?? '');
     $originPort = isset($parsedOrigin['port']) ? ':' . $parsedOrigin['port'] : '';
-    $originBase = ($parsedOrigin['scheme'] ?? 'http') . '://' . $originHost . $originPort;
+    $originBase = $originScheme . '://' . $originHost . $originPort;
 
     foreach ($allowedOrigins as $allowed) {
         $parsedAllowed = parse_url($allowed);
+        $allowedScheme = strtolower($parsedAllowed['scheme'] ?? 'http');
         $allowedHost = strtolower($parsedAllowed['host'] ?? '');
-        $allowedPort = isset($parsedAllowed['port']) ? ':' . $parsedAllowed['port'] : '';
-        $allowedBase = ($parsedAllowed['scheme'] ?? 'http') . '://' . $allowedHost . $allowedPort;
-
-        if ($originBase === $allowedBase) {
+        if ($allowedHost === '') {
+            continue;
+        }
+        if ($originHost === $allowedHost) {
+            $allowedPort = isset($parsedAllowed['port']) ? ':' . $parsedAllowed['port'] : '';
+            $allowedBase = $allowedScheme . '://' . $allowedHost . $allowedPort;
+            if ($originBase === $allowedBase) {
+                return $origin;
+            }
+        } elseif ($originScheme === $allowedScheme && substr($originHost, -strlen('.' . $allowedHost)) === '.' . $allowedHost) {
+            // Subdomain dari domain yang diizinkan (mis. event.vpictura.com dari vpictura.com).
             return $origin;
         }
     }
