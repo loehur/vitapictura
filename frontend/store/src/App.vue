@@ -40,6 +40,9 @@ const noteText = ref('')
 const fileMethod = ref('1')
 const linkDrive = ref('')
 const uploadFiles = ref([])
+const uploadError = ref('')
+const dragOverFiles = ref(false)
+const fileInputRef = ref(null)
 const uploading = ref(false)
 const uploadPercent = ref(0)
 const uploadIndex = ref(0)
@@ -324,7 +327,26 @@ function selectOption(group, rawValue) {
   manualImageKey.value = null
 }
 function changeQty(delta) { qty.value = Math.max(1, (Number(qty.value) || 1) + delta) }
-function onFilesChange(event) { uploadFiles.value = Array.from(event.target.files || []) }
+const UPLOAD_EXT = ['jpg', 'jpeg', 'png', 'pdf', 'zip', 'rar']
+const UPLOAD_TYPE = ['image/jpeg', 'image/png', 'application/pdf', 'application/zip', 'application/vnd.rar', 'application/x-rar-compressed']
+const UPLOAD_MAX_BYTES = 50 * 1024 * 1024
+function fileExt(name) { return String(name || '').split('.').pop().toLowerCase() }
+function sizeLabel(bytes) { const b = Number(bytes) || 0; if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB'; if (b >= 1024) return Math.round(b / 1024) + ' KB'; return b + ' B' }
+function acceptUploads(list) {
+  const rejected = []
+  const accepted = []
+  for (const file of Array.from(list || [])) {
+    if (!UPLOAD_TYPE.includes(file.type) && !UPLOAD_EXT.includes(fileExt(file.name))) { rejected.push(`${file.name} (tipe tidak diizinkan)`); continue }
+    if (file.size > UPLOAD_MAX_BYTES) { rejected.push(`${file.name} (${sizeLabel(file.size)} > 50 MB)`); continue }
+    accepted.push(file)
+  }
+  uploadFiles.value = accepted
+  uploadError.value = rejected.length ? `Ditolak: ${rejected.join(', ')}` : ''
+}
+function onFilesChange(event) { acceptUploads(event.target.files); if (fileInputRef.value) fileInputRef.value.value = '' }
+function onDropFiles(event) { dragOverFiles.value = false; acceptUploads(event.dataTransfer && event.dataTransfer.files) }
+function pickFiles() { if (fileInputRef.value) fileInputRef.value.click() }
+function removeUpload(index) { uploadFiles.value.splice(index, 1) }
 function lockScroll(on) { if (typeof document !== 'undefined') document.body.style.overflow = on ? 'hidden' : '' }
 function uploadFile(file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -831,10 +853,27 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             <span class="pd-label">Pengiriman File</span>
             <div class="pd-filebox">
               <label class="pd-radio"><input v-model="fileMethod" type="radio" value="1"> Upload di sini</label>
-              <div v-if="fileMethod === '1'" class="pd-sublabel">
-                <input type="file" multiple accept="image/jpeg,image/png,application/pdf,application/zip,application/vnd.rar,application/x-rar-compressed" @change="onFilesChange">
-                <small>JPG, PNG, PDF, ZIP, RAR · maksimal 50 MB per file</small>
-                <span v-if="uploadFiles.length" class="pd-hint">{{ uploadFiles.length }} file dipilih</span>
+              <div v-if="fileMethod === '1'" class="pd-fileupload">
+                <div class="upload-drop" :class="{ 'is-drag': dragOverFiles }" role="button" tabindex="0"
+                  @click="pickFiles" @keydown.enter.prevent="pickFiles" @keydown.space.prevent="pickFiles"
+                  @dragover.prevent="dragOverFiles = true" @dragleave.prevent="dragOverFiles = false" @drop.prevent="onDropFiles">
+                  <svg class="upload-drop__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                  <p class="upload-drop__title">Tarik &amp; lepas file di sini</p>
+                  <p class="upload-drop__sub">atau klik untuk memilih</p>
+                  <p class="upload-drop__limit">JPG, PNG, PDF, ZIP, RAR · maksimal 50 MB per file</p>
+                  <input ref="fileInputRef" type="file" multiple hidden accept="image/jpeg,image/png,application/pdf,application/zip,application/vnd.rar,application/x-rar-compressed" @change="onFilesChange">
+                </div>
+                <p v-if="uploadError" class="upload-error">{{ uploadError }}</p>
+                <ul v-if="uploadFiles.length" class="upload-list">
+                  <li v-for="(file, index) in uploadFiles" :key="index" class="upload-list__item">
+                    <span class="upload-list__ext">{{ fileExt(file.name).toUpperCase().slice(0, 4) }}</span>
+                    <span class="upload-list__meta">
+                      <span class="upload-list__name" :title="file.name">{{ file.name }}</span>
+                      <span class="upload-list__size">{{ sizeLabel(file.size) }}</span>
+                    </span>
+                    <button type="button" class="upload-list__x" aria-label="Hapus" @click="removeUpload(index)">×</button>
+                  </li>
+                </ul>
               </div>
               <label class="pd-radio"><input v-model="fileMethod" type="radio" value="2"> Share File, Link Drive</label>
               <input v-if="fileMethod === '2'" v-model="linkDrive" class="pd-input" type="text" placeholder="Tempel link Drive">

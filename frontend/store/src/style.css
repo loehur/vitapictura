@@ -1508,6 +1508,44 @@
   .pd-sublabel { display: grid; gap: 0.25rem; min-width: 0; padding-left: 1.35rem; }
   .pd-sublabel small { color: var(--color-muted); }
   .pd-hint { color: var(--color-muted); font-size: 0.85rem; }
+  .pd-fileupload { display: grid; gap: 0.4rem; min-width: 0; }
+  .upload-drop {
+    display: grid;
+    place-items: center;
+    gap: 0.15rem;
+    padding: 1.1rem 1rem;
+    border: 2px dashed var(--color-brand-200);
+    border-radius: var(--radius-card);
+    background: var(--color-brand-50);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+  }
+  .upload-drop:hover,
+  .upload-drop:focus-visible { border-color: var(--color-brand-500); }
+  .upload-drop.is-drag { border-color: var(--color-brand-600); background: var(--color-brand-100); transform: scale(1.01); }
+  .upload-drop__icon { width: 2.1rem; height: 2.1rem; color: var(--color-brand-500); }
+  .upload-drop__title { margin: 0.25rem 0 0; font-weight: 800; color: var(--color-brand-800); }
+  .upload-drop__sub { margin: 0; color: var(--color-muted); font-size: 0.85rem; }
+  .upload-drop__limit { margin: 0.15rem 0 0; color: var(--color-muted); font-size: 0.72rem; }
+  .upload-error { margin: 0; color: var(--color-danger); font-size: 0.78rem; }
+  .upload-list { display: grid; gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+  .upload-list__item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field);
+    background: var(--color-surface);
+  }
+  .upload-list__ext { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 0.5rem; background: var(--color-brand-50); color: var(--color-brand-600); font-size: 0.62rem; font-weight: 800; }
+  .upload-list__meta { display: grid; gap: 0.1rem; min-width: 0; }
+  .upload-list__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 0.85rem; }
+  .upload-list__size { color: var(--color-muted); font-size: 0.72rem; }
+  .upload-list__x { border: 0; background: transparent; color: var(--color-muted); font-size: 1.2rem; line-height: 1; padding: 0 0.2rem; }
+  .upload-list__x:hover { color: var(--color-danger); }
   .pd-mal { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .pd-mal a {
     padding: 0.4rem 0.7rem;
