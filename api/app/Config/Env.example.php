@@ -45,6 +45,19 @@ class Env
     const MIDTRANS_SERVER_KEY = '';
 
     /**
+     * Notifikasi WhatsApp via service md_waserver (metode kirim ORINS).
+     * Token disamakan dengan WASERV_TOKEN di server https://waserv.asiabarufoto.com.
+     */
+    const WASERV_URL = 'https://waserv.asiabarufoto.com';
+    const WASERV_TOKEN = '';
+    /** Nama sesi/device pengirim. Kosong = ambil sesi connected pertama dari service. */
+    const WASERV_SESSION = '';
+    /** Target notifikasi admin (nomor atau id grup WhatsApp). */
+    const WASERV_ADMIN_TARGET = '6281268098300-1581749587@g.us';
+    /** false = matikan pengiriman tanpa menghapus kode. */
+    const WASERV_ENABLED = true;
+
+    /**
      * Database credentials per environment.
      * Index 0 = database utama.
      */

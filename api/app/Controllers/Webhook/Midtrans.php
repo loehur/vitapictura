@@ -2,6 +2,7 @@
 namespace App\Controllers\Webhook;
 use App\Core\Controller;
 use App\Services\Shipping;
+use App\Services\WhatsApp;
 class Midtrans extends Controller {
  public function notification():void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);
@@ -18,7 +19,7 @@ class Midtrans extends Controller {
   $now=$GLOBALS['now']??date('Y-m-d H:i:s');
   $this->db()->beginTransaction();
   try{$this->db()->update('vp_payments',['transaction_id'=>(string)($b['transaction_id']??''),'payment_type'=>(string)($b['payment_type']??''),'status'=>$paymentStatus,'raw_notification'=>json_encode($b),'paid_at'=>$paymentStatus==='paid'?$now:null,'updated_at'=>$now],['order_id'=>(int)$order['id'],'provider'=>'midtrans']);$this->db()->update('vp_orders',['status'=>$orderStatus,'updated_at'=>$now],['id'=>(int)$order['id']]);$this->db()->commit();}catch(\Throwable $e){$this->db()->rollback();$this->error('Webhook processing failed',500);}
-  if($paymentStatus==='paid'){try{Shipping::bookBiteship($this->db(),$order);}catch(\Throwable $e){error_log('Biteship booking failed: '.$e->getMessage());}}
+  if($paymentStatus==='paid'){try{Shipping::bookBiteship($this->db(),$order);}catch(\Throwable $e){error_log('Biteship booking failed: '.$e->getMessage());try{WhatsApp::adminAlert('Biteship booking gagal REF#'.$order['order_number'].': '.$e->getMessage());}catch(\Throwable $e2){error_log('WA admin-alert failed: '.$e2->getMessage());}}try{WhatsApp::orderReceived($order);}catch(\Throwable $e){error_log('WA order-received failed: '.$e->getMessage());}}
   $this->success(null,'Notification processed');
  }
 }
