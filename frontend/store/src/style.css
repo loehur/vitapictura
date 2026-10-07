@@ -1606,6 +1606,7 @@
   .co-section { display: grid; gap: 0.6rem; margin-bottom: 1.1rem; }
   .co-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .co-head .link { margin-left: auto; }
+  .co-head__meta { margin-left: auto; font-size: 0.8rem; color: var(--color-muted); }
   .co-address,
   .co-rate {
     display: flex;
@@ -1626,6 +1627,16 @@
   .co-address small { color: var(--color-muted); }
   .co-rate { align-items: center; }
   .co-rate__name { margin-right: auto; font-weight: 600; }
+  .co-rates { display: grid; gap: 0.6rem; }
+  .co-rates--scroll {
+    max-height: 22rem;
+    overflow-y: auto;
+    padding-right: 0.3rem;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .co-rates--scroll::-webkit-scrollbar { width: 6px; }
+  .co-rates--scroll::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 999px; }
   .co-summary { gap: 0.35rem; padding: 0.9rem; border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-soft); }
   .co-summary > div { display: flex; align-items: center; justify-content: space-between; }
   .co-summary span { color: var(--color-muted); }
