@@ -5,7 +5,7 @@ use App\Core\Controller;use App\Helpers\AdminAuth;use App\Services\Shipping;use 
 class Orders extends Controller {
  public function index():void{
   $this->handleCors();$this->admin();
-  $rows=$this->db()->query('SELECT o.id,o.order_number,o.status,o.subtotal,o.shipping_cost,o.total,o.created_at,o.admin_note,o.courier_company,o.courier_type,o.courier_service,o.available_collection_method,o.recipient_snapshot,o.discount_shipping,o.discount_items,o.discount_promo,c.full_name customer_name,c.phone customer_phone,p.status payment_status,p.payment_type,p.paid_at,d.tracking_number,d.status delivery_status,d.biteship_order_id,d.collection_method,d.price_paid FROM vp_orders o INNER JOIN vp_customers c ON c.id=o.customer_id LEFT JOIN vp_payments p ON p.order_id=o.id LEFT JOIN vp_order_deliveries d ON d.order_id=o.id ORDER BY o.created_at DESC LIMIT 100')->result_array()?:[];
+  $rows=$this->db()->query('SELECT o.id,o.order_number,o.status,o.subtotal,o.shipping_cost,o.total,o.created_at,o.admin_note,o.courier_company,o.courier_type,o.courier_service,o.available_collection_method,o.recipient_snapshot,o.discount_shipping,o.discount_items,o.discount_promo,c.full_name customer_name,c.phone customer_phone,p.status payment_status,p.payment_type,p.paid_at,p.expiry_time payment_expiry,d.tracking_number,d.status delivery_status,d.biteship_order_id,d.collection_method,d.price_paid FROM vp_orders o INNER JOIN vp_customers c ON c.id=o.customer_id LEFT JOIN vp_payments p ON p.order_id=o.id LEFT JOIN vp_order_deliveries d ON d.order_id=o.id ORDER BY o.created_at DESC LIMIT 100')->result_array()?:[];
   $ids=array_map(fn($r)=>(int)$r['id'],$rows);
   $itemsByOrder=[];
   if(!empty($ids)){
@@ -59,7 +59,7 @@ class Orders extends Controller {
   $items=$this->db()->query('SELECT id,product_name,selections_snapshot,quantity,unit_price,total_price FROM vp_order_items WHERE order_id=? ORDER BY id',[$id])->result_array()?:[];
   foreach($items as &$it){$it['id']=(int)$it['id'];$it['quantity']=(int)$it['quantity'];$it['unit_price']=(float)$it['unit_price'];$it['total_price']=(float)$it['total_price'];$it['selections']=json_decode((string)($it['selections_snapshot']??''),true)?:[];unset($it['selections_snapshot']);}
   unset($it);$o['items']=$items;
-  $p=$this->db()->query('SELECT status,transaction_id,payment_type,gross_amount,paid_at FROM vp_payments WHERE order_id=? LIMIT 1',[$id])->row_array();
+  $p=$this->db()->query('SELECT status,transaction_id,payment_type,gross_amount,paid_at,expiry_time FROM vp_payments WHERE order_id=? LIMIT 1',[$id])->row_array();
   if($p)$p['gross_amount']=(float)$p['gross_amount'];$o['payment']=$p;
   $d=$this->db()->query('SELECT tracking_number,courier_company,courier_service,status,shipped_at,delivered_at,biteship_order_id,collection_method,price_paid,tracking_history FROM vp_order_deliveries WHERE order_id=? LIMIT 1',[$id])->row_array();
   if($d){$d['price_paid']=isset($d['price_paid'])?(float)$d['price_paid']:null;$d['tracking_history']=json_decode((string)($d['tracking_history']??''),true)?:[];}

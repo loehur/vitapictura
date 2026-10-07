@@ -70,14 +70,14 @@ function loadView(key) { if (key === 'dashboard') return loadDashboard(); if (ke
 // ---- Orders ----
 const orders = ref([])
 const search = ref('')
-const statusFilter = ref('all')
+const statusFilter = ref('')
 const savingId = ref(null)
 const loading = ref(false)
 const expiryHours = ref(25)
 const tracking = ref({})
 function parseDate(value) { if (!value) return null; const d = new Date(String(value).replace(' ', 'T')); return Number.isNaN(d.getTime()) ? null : d }
 function ageText(value) { const d = parseDate(value); if (!d) return ''; const hours = Math.max(0, Math.floor((Date.now() - d.getTime()) / 3600000)); const days = Math.floor(hours / 24); return days >= 1 ? `${days} hari ${hours % 24} jam` : `${hours} jam` }
-function dueText(value) { const d = parseDate(value); if (!d) return '—'; return new Date(d.getTime() + (Number(expiryHours.value) || 25) * 3600000).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }
+function dueText(value, expiry) { if (expiry) { const e = parseDate(expiry); if (e) return e.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) } const d = parseDate(value); if (!d) return '—'; return new Date(d.getTime() + (Number(expiryHours.value) || 25) * 3600000).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }
 async function loadOrders() { loading.value = true; try { const d = await api('Orders/index'); orders.value = d.items || []; expiryHours.value = d.expiryHours || 25 } catch (e) { error.value = e.message } finally { loading.value = false } }
 async function update(order, status) {
   const previous = order.status
@@ -112,27 +112,17 @@ async function markPaid() {
   try { await api(`Orders/mark-paid/${orderDetail.value.id}`, {}); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan ditandai lunas.') }
   catch (e) { error.value = e.message } finally { savingOrder.value = false }
 }
-const orderTabs = [
-  { key: 'all', label: 'Semua', statuses: null },
-  { key: 'pending_payment', label: 'Belum Bayar', statuses: ['pending_payment'] },
-  { key: 'process', label: 'Diproses', statuses: ['paid', 'processing'] },
-  { key: 'shipped', label: 'Dikirim', statuses: ['shipped'] },
-  { key: 'completed', label: 'Selesai', statuses: ['completed'] },
-  { key: 'cancelled', label: 'Batal', statuses: ['cancelled'] },
-  { key: 'expired', label: 'Kedaluwarsa', statuses: ['expired'] },
-]
-function tabStatuses(key) { const t = orderTabs.find((x) => x.key === key); return t ? t.statuses : null }
-function orderCount(key) { const s = tabStatuses(key); return s ? orders.value.filter((o) => s.includes(o.status)).length : orders.value.length }
+const orderTabs = [ { key: '', label: 'Semua' }, { key: 'pending_payment', label: 'Menunggu' }, { key: 'processing', label: 'Diproses' }, { key: 'shipped', label: 'Dikirim' }, { key: 'completed', label: 'Selesai' }, { key: 'cancelled', label: 'Batal' }, { key: 'expired', label: 'Kedaluwarsa' } ]
+function orderCount(status) { return status ? orders.value.filter((o) => o.status === status).length : orders.value.length }
 async function bookOrder() { if (!orderDetail.value) return; if (!window.confirm('Buat order pengiriman ke Biteship?')) return; savingOrder.value = true; try { await api(`Orders/book/${orderDetail.value.id}`, {}); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan dikirim (Biteship).') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
 async function completeOrder() { if (!orderDetail.value) return; if (!window.confirm('Tandai pesanan selesai?')) return; savingOrder.value = true; try { await api(`Orders/mark-completed/${orderDetail.value.id}`, {}); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan selesai.') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
 async function cancelOrder() { if (!orderDetail.value) return; const note = window.prompt('Alasan pembatalan:'); if (note === null) return; savingOrder.value = true; try { await api(`Orders/cancel/${orderDetail.value.id}`, { note }); await openOrder({ id: orderDetail.value.id }); await loadOrders(); flash('Pesanan dibatalkan.') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
 function formatDateTime(value) { if (!value) return '—'; const d = new Date(String(value).replace(' ', 'T')); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
 const filteredOrders = computed(() => {
   const query = search.value.trim().toLowerCase()
-  const statuses = tabStatuses(statusFilter.value)
   return orders.value.filter((order) => {
     const matchQuery = !query || order.order_number.toLowerCase().includes(query) || (order.customer_name || '').toLowerCase().includes(query)
-    const matchStatus = !statuses || statuses.includes(order.status)
+    const matchStatus = !statusFilter.value || order.status === statusFilter.value
     return matchQuery && matchStatus
   })
 })
@@ -512,10 +502,9 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
       <template v-else-if="view === 'orders'">
         <section class="stats">
           <article class="stat"><span>Total</span><strong>{{ orders.length }}</strong></article>
-          <article class="stat"><span>Belum bayar</span><strong>{{ orderCount('pending_payment') }}</strong></article>
-          <article class="stat"><span>Diproses</span><strong>{{ orderCount('process') }}</strong></article>
-          <article class="stat"><span>Dikirim</span><strong>{{ orderCount('shipped') }}</strong></article>
-          <article class="stat"><span>Selesai</span><strong>{{ orderCount('completed') }}</strong></article>
+          <article class="stat"><span>Perlu diproses</span><strong>{{ countBy('processing') }}</strong></article>
+          <article class="stat"><span>Dikirim</span><strong>{{ countBy('shipped') }}</strong></article>
+          <article class="stat"><span>Selesai</span><strong>{{ countBy('completed') }}</strong></article>
         </section>
 
         <div class="tabs">
@@ -532,72 +521,30 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           </div>
           <p v-else-if="!filteredOrders.length" class="muted">Tidak ada pesanan yang cocok.</p>
 
-          <div v-else class="order-cards">
-            <article v-for="order in filteredOrders" :key="order.id" class="order-card">
-              <header class="order-card__head">
-                <div class="order-card__title">
-                  <button class="link" type="button" @click="openOrder(order)">{{ order.customer_name }}</button>
-                  <span class="order-card__ref">REF#{{ order.order_number }}</span>
-                </div>
-                <div class="order-card__meta">
-                  <span class="status" :class="`status--${order.status}`">{{ order.status }}</span>
-                  <span class="order-card__time">{{ formatDateTime(order.created_at) }} · {{ ageText(order.created_at) }}</span>
-                </div>
-              </header>
-
-              <div v-if="order.status === 'pending_payment'" class="order-card__due">Batas bayar: {{ dueText(order.created_at) }}</div>
-
-              <div class="table-wrap">
-                <table class="orders-table variant-table order-card__items">
-                  <tbody>
-                    <tr v-for="(it, i) in order.items" :key="i">
-                      <td data-label="Produk">{{ it.product_name }}</td>
-                      <td data-label="Qty" class="ta-r">{{ it.quantity }}pcs</td>
-                      <td data-label="Total" class="ta-r">{{ rupiah.format(it.total_price) }}</td>
-                    </tr>
-                    <tr class="order-card__courier">
-                      <td colspan="2">Pengiriman: <strong>{{ order.courier_company ? `${order.courier_company} ${order.courier_type || ''}` : 'Jemput ke Toko' }}</strong><template v-if="order.collection_method"> · {{ order.collection_method }}</template><template v-if="order.tracking_number"> · Resi {{ order.tracking_number }}</template></td>
-                      <td class="ta-r">{{ rupiah.format(order.shipping_cost) }}</td>
-                    </tr>
-                    <tr v-if="order.discount_shipping > 0"><td colspan="2">Diskon Ongkir</td><td class="ta-r">-{{ rupiah.format(order.discount_shipping) }}</td></tr>
-                    <tr v-if="order.discount_items > 0"><td colspan="2">Diskon Belanja</td><td class="ta-r">-{{ rupiah.format(order.discount_items) }}</td></tr>
-                    <tr v-if="order.discount_promo > 0"><td colspan="2">Diskon Promo</td><td class="ta-r text-success">-{{ rupiah.format(order.discount_promo) }}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="order-card__total">Total <strong>{{ rupiah.format(order.total) }}</strong></div>
-
-              <div v-if="tracking[order.id]" class="order-card__tracking">
-                <span v-if="tracking[order.id].loading" class="muted">Memuat tracking…</span>
-                <span v-else-if="tracking[order.id].error" class="text-danger">{{ tracking[order.id].error }}</span>
-                <template v-else>
-                  <div v-if="!tracking[order.id].history.length" class="order-track muted">Kurir telah dipesan. Belum ada riwayat.</div>
-                  <div v-for="(h, hi) in tracking[order.id].history" :key="hi" class="order-track">
-                    <strong>{{ h.status }}</strong>
-                    <span class="muted">{{ h.updated_at }}</span>
-                    <span>{{ h.note }}</span>
-                  </div>
-                </template>
-              </div>
-
-              <div class="order-card__actions">
-                <button class="link" type="button" @click="openOrder(order)">Detail</button>
-                <button v-if="order.status === 'pending_payment'" class="ghost--sm" type="button" :disabled="cardBusy === order.id" @click="markPaidOrder(order)">Tandai Lunas</button>
-                <template v-if="order.status === 'paid' || order.status === 'processing'">
-                  <template v-if="order.available_collection_method && order.available_collection_method.length">
-                    <button v-for="m in order.available_collection_method" :key="m" class="ghost--sm" type="button" :disabled="cardBusy === order.id" @click="bookOrderWith(order, m)">Kirim · {{ m }}</button>
-                  </template>
-                  <button v-else class="ghost--sm" type="button" :disabled="cardBusy === order.id || !order.courier_company" @click="bookOrderWith(order, '')">Kirim (Biteship)</button>
-                  <button class="ghost--sm" type="button" :disabled="cardBusy === order.id" @click="completeOrderById(order)">Selesai</button>
-                </template>
-                <template v-if="order.status === 'shipped'">
-                  <button class="ghost--sm" type="button" :disabled="tracking[order.id] && tracking[order.id].loading" @click="loadTracking(order)">Lihat Tracking</button>
-                  <button class="ghost--sm" type="button" :disabled="cardBusy === order.id" @click="completeOrderById(order)">Selesai</button>
-                </template>
-                <button v-if="order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'expired'" class="link-danger" type="button" :disabled="cardBusy === order.id" @click="cancelOrderById(order)">Batalkan</button>
-              </div>
-            </article>
+          <div v-else class="table-wrap">
+            <table class="orders-table">
+              <thead>
+                <tr><th>No. Pesanan</th><th>Pelanggan</th><th>Tanggal</th><th>Total</th><th>Bayar</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="order in filteredOrders" :key="order.id">
+                  <td data-label="No. Pesanan"><strong>{{ order.order_number }}</strong><small v-if="order.tracking_number">Resi: {{ order.tracking_number }}</small></td>
+                  <td data-label="Pelanggan">{{ order.customer_name }}</td>
+                  <td data-label="Tanggal">{{ formatDate(order.created_at) }}</td>
+                  <td data-label="Total">{{ rupiah.format(order.total) }}</td>
+                  <td data-label="Bayar"><span class="status" :class="`status--${order.payment_status || 'unpaid'}`">{{ order.payment_status || 'unpaid' }}</span></td>
+                  <td data-label="Status">
+                    <select :value="order.status" :disabled="savingId === order.id" @change="update(order, $event.target.value)">
+                      <option value="processing">Processing</option>
+                      <option value="shipped">Shipped</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </td>
+                  <td data-label="Aksi"><button class="link" type="button" @click="openOrder(order)">Detail</button></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </section>
       </template>
@@ -1071,6 +1018,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           <div><span>Metode</span><strong>{{ orderDetail.payment?.payment_type || '—' }}</strong></div>
           <div><span>Transaksi</span><strong>{{ orderDetail.payment?.transaction_id || '—' }}</strong></div>
           <div><span>Dibayar</span><strong>{{ formatDateTime(orderDetail.payment?.paid_at) }}</strong></div>
+          <div v-if="orderDetail.payment?.expiry_time"><span>Batas Bayar</span><strong>{{ dueText(orderDetail.created_at, orderDetail.payment.expiry_time) }}</strong></div>
         </div>
         <div class="detail-actions-line">
           <button v-if="orderDetail.payment?.status !== 'paid'" class="ghost--sm" type="button" :disabled="savingOrder" @click="markPaid">Tandai lunas</button>

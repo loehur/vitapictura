@@ -1,7 +1,6 @@
 <?php
 namespace App\Controllers\Webhook;
 use App\Core\Controller;
-use App\Services\Shipping;
 use App\Services\WhatsApp;
 class Midtrans extends Controller {
  public function notification():void{
@@ -14,12 +13,15 @@ class Midtrans extends Controller {
   if(empty($b['signature_key'])||!hash_equals($signature,(string)$b['signature_key']))$this->error('Invalid Midtrans signature',401);
   if(number_format((float)$order['total'],2,'.','')!==number_format((float)($b['gross_amount']??-1),2,'.',''))$this->error('Payment amount mismatch',422);
   $tx=(string)($b['transaction_status']??'');$fraud=(string)($b['fraud_status']??'accept');
-  $paymentStatus=in_array($tx,['settlement','capture'],true)&&$fraud!=='deny'?'paid':(in_array($tx,['expire'],true)?'expired':(in_array($tx,['cancel','deny','failure'],true)?'failed':'pending'));
-  $orderStatus=$paymentStatus==='paid'?'paid':($paymentStatus==='expired'?'expired':($paymentStatus==='failed'?'cancelled':'pending_payment'));
+  $paid=in_array($tx,['settlement','capture'],true)&&$fraud!=='deny';
+  $paymentStatus=$paid?'paid':(in_array($tx,['expire'],true)?'expired':(in_array($tx,['refund','partial_refund'],true)?'cancelled':(in_array($tx,['cancel','deny','failure'],true)?'failed':'pending')));
+  $orderStatus=$paymentStatus==='paid'?'paid':($paymentStatus==='expired'?'expired':(($paymentStatus==='failed'||$paymentStatus==='cancelled')?'cancelled':'pending_payment'));
   $now=$GLOBALS['now']??date('Y-m-d H:i:s');
+  $expiry=!empty($b['expiry_time'])?(string)$b['expiry_time']:null;
   $this->db()->beginTransaction();
-  try{$this->db()->update('vp_payments',['transaction_id'=>(string)($b['transaction_id']??''),'payment_type'=>(string)($b['payment_type']??''),'status'=>$paymentStatus,'raw_notification'=>json_encode($b),'paid_at'=>$paymentStatus==='paid'?$now:null,'updated_at'=>$now],['order_id'=>(int)$order['id'],'provider'=>'midtrans']);$this->db()->update('vp_orders',['status'=>$orderStatus,'updated_at'=>$now],['id'=>(int)$order['id']]);$this->db()->commit();}catch(\Throwable $e){$this->db()->rollback();$this->error('Webhook processing failed',500);}
-  if($paymentStatus==='paid'){try{Shipping::bookBiteship($this->db(),$order);}catch(\Throwable $e){error_log('Biteship booking failed: '.$e->getMessage());try{WhatsApp::adminAlert('Biteship booking gagal REF#'.$order['order_number'].': '.$e->getMessage());}catch(\Throwable $e2){error_log('WA admin-alert failed: '.$e2->getMessage());}}try{WhatsApp::orderReceived($order);}catch(\Throwable $e){error_log('WA order-received failed: '.$e->getMessage());}}
+  try{$this->db()->update('vp_payments',['transaction_id'=>(string)($b['transaction_id']??''),'payment_type'=>(string)($b['payment_type']??''),'status'=>$paymentStatus,'raw_notification'=>json_encode($b),'paid_at'=>$paymentStatus==='paid'?$now:null,'expiry_time'=>$expiry,'updated_at'=>$now],['order_id'=>(int)$order['id'],'provider'=>'midtrans']);$this->db()->update('vp_orders',['status'=>$orderStatus,'updated_at'=>$now],['id'=>(int)$order['id']]);$this->db()->commit();}catch(\Throwable $e){$this->db()->rollback();try{WhatsApp::adminAlert('Webhook Midtrans gagal REF#'.$order['order_number'].': '.$e->getMessage());}catch(\Throwable $e2){error_log('WA webhook-alert failed: '.$e2->getMessage());}$this->error('Webhook processing failed',500);}
+  if($paymentStatus==='paid'){try{WhatsApp::orderReceived($order);}catch(\Throwable $e){error_log('WA order-received failed: '.$e->getMessage());}}
+  if(in_array($paymentStatus,['failed','expired','cancelled'],true)){try{WhatsApp::adminAlert('Pembayaran '.$paymentStatus.' REF#'.$order['order_number'].' ('.$tx.')');}catch(\Throwable $e){error_log('WA payment-alert failed: '.$e->getMessage());}}
   $this->success(null,'Notification processed');
  }
 }
