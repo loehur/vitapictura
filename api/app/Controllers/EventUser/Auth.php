@@ -18,7 +18,7 @@ class Auth extends Controller {
   $u=$identity;$this->success(['id'=>(int)$u['id'],'name'=>(string)$u['full_name'],'email'=>(string)$u['email'],'avatarUrl'=>(string)($u['avatar_url']??'')],'Login berhasil');
  }
  public function me():void{
-  $this->handleCors();$u=CustomerAuth::user();if(!$u)$this->error('Unauthorized',401);
+  $this->handleCors();$u=CustomerAuth::user();if(!$u){$this->success(null,'Unauthenticated');return;}
   Events::ensureProfile($this->db(),(int)$u['id']);
   $prof=$this->db()->query('SELECT status,balance,approved FROM vp_event_profiles WHERE customer_id=? LIMIT 1',[(int)$u['id']])->row_array();
   if($prof&&$prof['status']==='blocked')$this->error('Akun event diblokir',403);

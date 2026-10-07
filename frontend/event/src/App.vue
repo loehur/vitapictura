@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
 function apiUrl(path) { return API_BASE ? `${API_BASE}${path}` : `/api${path}` }
@@ -157,6 +157,15 @@ async function loadBalance() { balanceLoading.value = true; try { const d = awai
 function go(v) { view.value = v; if (v === 'events') loadEvents(); if (v === 'orders') loadOrders(); if (v === 'balance') loadBalance() }
 
 onMounted(async () => { await boot(); if (!user.value) { await loadConfig(); await renderGoogle() } else { await loadEvents() } })
+
+// Re-render tombol Google setiap kembali ke halaman login (mis. setelah logout).
+watch(user, async (u) => {
+  if (u) return
+  googleRendered = false
+  if (!googleClientId.value) { try { await loadConfig() } catch (e) {} }
+  await nextTick()
+  renderGoogle()
+})
 </script>
 
 <template>

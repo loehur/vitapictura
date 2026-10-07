@@ -735,14 +735,17 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
               <thead><tr><th>User</th><th>Event</th><th>Foto</th><th>Saldo</th><th>Limit</th><th>Status</th><th>Approval</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="u in eventUsers" :key="u.id">
-                  <td data-label="User"><strong>{{ u.full_name }}</strong><small>{{ u.email }}</small></td>
+                  <td data-label="User"><strong>{{ u.full_name }}</strong> <span class="status" :class="u.approved ? 'status--paid' : 'status--pending'">{{ u.approved ? 'Disetujui' : 'Menunggu' }}</span><small>{{ u.email }}</small></td>
                   <td data-label="Event">{{ u.event_count }}</td>
                   <td data-label="Foto">{{ u.photo_count }}</td>
                   <td data-label="Saldo">{{ rupiah.format(u.balance) }}</td>
                   <td data-label="Limit"><small>Event: {{ u.max_events ?? eventUsersDefaults.maxEvents }} · Foto: {{ u.max_photos_per_event ?? eventUsersDefaults.maxPhotos }}</small></td>
                   <td data-label="Status"><span class="status" :class="u.status === 'active' ? 'status--paid' : 'status--expired'">{{ u.status }}</span></td>
                   <td data-label="Approval">
-                    <button class="link" type="button" @click="setEventUserApproval(u, !u.approved)">{{ u.approved ? 'Batalkan' : 'Setujui' }}</button>
+                    <div class="row-actions">
+                      <span class="status" :class="u.approved ? 'status--paid' : 'status--pending'">{{ u.approved ? 'Disetujui' : 'Menunggu' }}</span>
+                      <button class="link" type="button" @click="setEventUserApproval(u, !u.approved)">{{ u.approved ? 'Batalkan' : 'Setujui' }}</button>
+                    </div>
                   </td>
                   <td data-label="Aksi"><button class="link" type="button" @click="openEventUser(u)">Detail</button></td>
                 </tr>
@@ -1225,7 +1228,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
   <div v-if="eventUserModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Detail event user" @click.self="closeEventUser">
     <div class="modal-card modal-card--wide">
       <div class="modal-head">
-        <h3 v-if="eventUserDetail">{{ eventUserDetail.full_name }} <span class="status" :class="eventUserDetail.status === 'active' ? 'status--paid' : 'status--expired'">{{ eventUserDetail.status }}</span></h3>
+        <h3 v-if="eventUserDetail">{{ eventUserDetail.full_name }} <span class="status" :class="eventUserDetail.status === 'active' ? 'status--paid' : 'status--expired'">{{ eventUserDetail.status }}</span> <span class="status" :class="eventUserDetail.approved ? 'status--paid' : 'status--pending'">{{ eventUserDetail.approved ? 'Disetujui' : 'Menunggu' }}</span></h3>
         <h3 v-else>Detail event user</h3>
         <button class="modal-x" type="button" aria-label="Tutup" @click="closeEventUser">×</button>
       </div>
