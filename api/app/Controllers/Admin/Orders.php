@@ -28,7 +28,10 @@ class Orders extends Controller {
  public function update_status($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$this->admin();
   $status=(string)($this->getBody()['status']??'');
-  if(!in_array($status,['pending_payment','paid','processing','shipped','completed','cancelled','expired'],true))$this->error('Invalid status',422);
+  if(!in_array($status,['processing','cancelled'],true))$this->error('Perubahan status manual hanya untuk Processing atau Cancelled',422);
+  $cur=$this->db()->query('SELECT status FROM vp_orders WHERE id=? LIMIT 1',[(int)$id])->row_array();
+  if(!$cur)$this->error('Order not found',404);
+  if(in_array($cur['status'],['shipped','completed'],true))$this->error('Status sudah dikirim — sepenuhnya ditangani webhook pengiriman',422);
   $ok=$this->db()->update('vp_orders',['status'=>$status,'updated_at'=>$GLOBALS['now']??date('Y-m-d H:i:s')],['id'=>(int)$id]);
   if(!$ok)$this->error('Order not found',404);
   $this->success(null,'Order status updated');
@@ -37,14 +40,14 @@ class Orders extends Controller {
  public function save_delivery($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$this->admin();
   $b=$this->getBody();
-  $order=$this->db()->query('SELECT id FROM vp_orders WHERE id=? LIMIT 1',[(int)$id])->row_array();
+  $order=$this->db()->query('SELECT id,status FROM vp_orders WHERE id=? LIMIT 1',[(int)$id])->row_array();
   if(!$order)$this->error('Order not found',404);
   $now=$GLOBALS['now']??date('Y-m-d H:i:s');
   $data=['tracking_number'=>trim((string)($b['tracking_number']??''))?:null,'courier_company'=>trim((string)($b['courier_company']??''))?:null,'courier_service'=>trim((string)($b['courier_service']??''))?:null,'status'=>trim((string)($b['status']??'shipped')),'shipped_at'=>$now,'updated_at'=>$now];
   $existing=$this->db()->query('SELECT id FROM vp_order_deliveries WHERE order_id=? LIMIT 1',[(int)$id])->row_array();
   if($existing)$this->db()->update('vp_order_deliveries',$data,['id'=>(int)$existing['id']]);
   else $this->db()->insert('vp_order_deliveries',$data+['order_id'=>(int)$id,'created_at'=>$now]);
-  $this->db()->update('vp_orders',['status'=>'shipped','updated_at'=>$now],['id'=>(int)$id]);
+  if(!in_array($order['status'],['shipped','completed','cancelled'],true))$this->db()->update('vp_orders',['status'=>'shipped','updated_at'=>$now],['id'=>(int)$id]);
   $this->success(null,'Delivery saved');
  }
 
@@ -114,13 +117,14 @@ class Orders extends Controller {
 
  public function mark_paid($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$this->admin();$id=(int)$id;
-  $order=$this->db()->query('SELECT id,order_number FROM vp_orders WHERE id=? LIMIT 1',[$id])->row_array();
+  $order=$this->db()->query('SELECT id,order_number,status FROM vp_orders WHERE id=? LIMIT 1',[$id])->row_array();
   if(!$order)$this->error('Order not found',404);
   $now=$GLOBALS['now']??date('Y-m-d H:i:s');
   $p=$this->db()->query('SELECT id FROM vp_payments WHERE order_id=? LIMIT 1',[$id])->row_array();
   if($p)$this->db()->update('vp_payments',['status'=>'paid','paid_at'=>$now,'updated_at'=>$now],['id'=>(int)$p['id']]);
   else $this->db()->insert('vp_payments',['order_id'=>$id,'provider'=>'manual','gross_amount'=>0,'status'=>'paid','paid_at'=>$now,'created_at'=>$now,'updated_at'=>$now]);
-  $this->db()->update('vp_orders',['status'=>'processing','updated_at'=>$now],['id'=>$id]);
+  $ou=['updated_at'=>$now];if(!in_array($order['status'],['shipped','completed'],true))$ou['status']='processing';
+  $this->db()->update('vp_orders',$ou,['id'=>$id]);
   try{WhatsApp::orderReceived($order);}catch(\Throwable $e){error_log('WA order-received failed: '.$e->getMessage());}
   $this->success(null,'Pesanan ditandai lunas');
  }
@@ -137,8 +141,9 @@ class Orders extends Controller {
  public function cancel($id=null):void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$this->admin();$id=(int)$id;
   $note=trim((string)($this->getBody()['note']??''))?:null;
-  $row=$this->db()->query('SELECT o.id,o.order_number,o.recipient_snapshot,c.phone FROM vp_orders o INNER JOIN vp_customers c ON c.id=o.customer_id WHERE o.id=? LIMIT 1',[$id])->row_array();
+  $row=$this->db()->query('SELECT o.id,o.order_number,o.status,o.recipient_snapshot,c.phone FROM vp_orders o INNER JOIN vp_customers c ON c.id=o.customer_id WHERE o.id=? LIMIT 1',[$id])->row_array();
   if(!$row)$this->error('Order not found',404);
+  if(in_array($row['status'],['shipped','completed'],true))$this->error('Pesanan sudah dikirim — tidak bisa dibatalkan manual (menunggu webhook pengiriman)',422);
   $now=$GLOBALS['now']??date('Y-m-d H:i:s');
   $this->db()->update('vp_orders',['status'=>'cancelled','admin_note'=>$note,'updated_at'=>$now],['id'=>$id]);
   $this->db()->update('vp_payments',['status'=>'cancelled','updated_at'=>$now],['order_id'=>$id]);

@@ -22,6 +22,7 @@ const midtransProd = ref(false)
 const snapReady = ref(false)
 const addressBook = ref(false)
 const addressModalOpen = ref(false)
+const addressEditingId = ref(null)
 const addresses = ref([])
 const addressForm = ref({ label: '', recipient_name: '', recipient_phone: '', address_line: '', notes: '', province_id: '', province_name: '', regency_id: '', regency_name: '', district_id: '', district_name: '', village_id: '', village_name: '', postal_code: '', area_id: '', area_name: '', latitude: null, longitude: null, is_default: false })
 const googleMapsKey = ref('')
@@ -310,9 +311,28 @@ async function resolveArea() {
 }
 function addressHierarchy(item) { return [item.villageName, item.districtName, item.regencyName, item.provinceName, item.postalCode].filter(Boolean).join(', ') }
 async function openAddresses() { return navigate('account') }
-function openAddressModal() { addressModalOpen.value = true; pushModalHistory(); nextTick(() => startMap()) }
-function closeAddressModal() { addressModalOpen.value = false; popModalHistory() }
-async function saveAddress() { try { await resolveArea(); await post('/Customer/Addresses/save', addressForm.value); resetAddressForm(); if (markerInstance) setMarkerPosition(null); closeAddressModal(); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
+function openAddressModal() { addressEditingId.value = null; resetAddressForm(); if (markerInstance) setMarkerPosition(null); addressModalOpen.value = true; pushModalHistory(); nextTick(() => startMap()) }
+function closeAddressModal() { addressModalOpen.value = false; addressEditingId.value = null; popModalHistory() }
+async function editAddress(item) {
+  addressEditingId.value = item.id
+  addressForm.value = {
+    label: item.label || '', recipient_name: item.recipientName || '', recipient_phone: item.recipientPhone || '',
+    address_line: item.addressLine || '', notes: item.notes || '',
+    province_id: item.provinceId || '', province_name: item.provinceName || '',
+    regency_id: item.regencyId || '', regency_name: item.regencyName || '',
+    district_id: item.districtId || '', district_name: item.districtName || '',
+    village_id: item.villageId || '', village_name: item.villageName || '',
+    postal_code: item.postalCode || '', area_id: item.areaId || '', area_name: item.areaName || '',
+    latitude: item.latitude ?? null, longitude: item.longitude ?? null, is_default: !!item.isDefault,
+  }
+  try {
+    if (addressForm.value.province_id) wilayah.value.regencies = await fetchWilayah(`regencies/${addressForm.value.province_id}.json`)
+    if (addressForm.value.regency_id) wilayah.value.districts = await fetchWilayah(`districts/${addressForm.value.regency_id}.json`)
+    if (addressForm.value.district_id) wilayah.value.villages = await fetchWilayah(`villages/${addressForm.value.district_id}.json`)
+  } catch (e) {}
+  addressModalOpen.value = true; pushModalHistory(); nextTick(() => startMap())
+}
+async function saveAddress() { try { await resolveArea(); const path = addressEditingId.value ? `/Customer/Addresses/save/${addressEditingId.value}` : '/Customer/Addresses/save'; await post(path, addressForm.value); resetAddressForm(); addressEditingId.value = null; if (markerInstance) setMarkerPosition(null); closeAddressModal(); await openAddresses(); flash('Alamat disimpan.') } catch(e){error.value=e.message} }
 async function setDefaultAddress(item) { try { await post(`/Customer/Addresses/set-default/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 async function removeAddress(item) { try { await post(`/Customer/Addresses/remove/${item.id}`); await openAddresses() } catch(e){ error.value=e.message } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }
@@ -717,16 +737,17 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <span>{{ item.addressLine }}</span>
         <span v-if="addressHierarchy(item)" class="address__area">{{ addressHierarchy(item) }}</span>
         <div class="address__actions">
+          <button class="link" type="button" @click="editAddress(item)">Edit</button>
           <button v-if="!item.isDefault" class="link" type="button" @click="setDefaultAddress(item)">Jadikan utama</button>
           <button class="link-danger" type="button" @click="removeAddress(item)">Hapus</button>
         </div>
       </article>
 
-      <div v-show="addressModalOpen" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Tambah lokasi" @click.self="closeAddressModal">
+      <div v-show="addressModalOpen" class="modal-overlay" role="dialog" aria-modal="true" :aria-label="addressEditingId ? 'Edit lokasi' : 'Tambah lokasi'" @click.self="closeAddressModal">
       <div class="modal-card">
       <button class="modal-close" type="button" aria-label="Tutup" @click="closeAddressModal">×</button>
       <form class="address-form" @submit.prevent="saveAddress">
-        <h2>Tambah lokasi</h2>
+        <h2>{{ addressEditingId ? 'Edit lokasi' : 'Tambah lokasi' }}</h2>
         <label class="field"><span>Label</span><input v-model="addressForm.label" required placeholder="Contoh: Rumah"></label>
         <label class="field"><span>Nama penerima</span><input v-model="addressForm.recipient_name" required placeholder="Nama lengkap"></label>
         <label class="field"><span>Nomor WhatsApp</span><input v-model="addressForm.recipient_phone" required placeholder="08xxxxxxxxxx"></label>
@@ -765,7 +786,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <label class="field"><span>Catatan (opsional)</span><input v-model="addressForm.notes" placeholder="Patokan, jam kirim, dll"></label>
         <label class="check"><input v-model="addressForm.is_default" type="checkbox"> Jadikan alamat utama</label>
         <p v-if="areaStatus" class="muted">{{ areaStatus }}</p>
-        <button class="cta" type="submit">Simpan alamat</button>
+        <button class="cta" type="submit">{{ addressEditingId ? 'Simpan perubahan' : 'Simpan alamat' }}</button>
       </form>
       </div>
       </div>

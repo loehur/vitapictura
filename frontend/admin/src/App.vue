@@ -536,12 +536,11 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
                   <td data-label="Total">{{ rupiah.format(order.total) }}</td>
                   <td data-label="Bayar"><span class="status" :class="`status--${order.payment_status || 'unpaid'}`">{{ order.payment_status || 'unpaid' }}</span></td>
                   <td data-label="Status">
-                    <select :value="order.status" :disabled="savingId === order.id" @change="update(order, $event.target.value)">
+                    <select v-if="order.status === 'processing' || order.status === 'cancelled'" :value="order.status" :disabled="savingId === order.id" @change="update(order, $event.target.value)">
                       <option value="processing">Processing</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="completed">Completed</option>
                       <option value="cancelled">Cancelled</option>
                     </select>
+                    <span v-else class="status" :class="`status--${order.status}`">{{ order.status }}</span>
                   </td>
                   <td data-label="Aksi"><button class="link" type="button" @click="openOrder(order)">Detail</button></td>
                 </tr>
@@ -1024,7 +1023,7 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </div>
         <div class="detail-actions-line">
           <button v-if="orderDetail.payment?.status !== 'paid'" class="ghost--sm" type="button" :disabled="savingOrder" @click="markPaid">Tandai lunas</button>
-          <button v-if="orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled' && orderDetail.status !== 'expired'" class="link-danger" type="button" :disabled="savingOrder" @click="cancelOrder">Batalkan</button>
+          <button v-if="['pending_payment','paid','processing'].includes(orderDetail.status)" class="link-danger" type="button" :disabled="savingOrder" @click="cancelOrder">Batalkan</button>
           <span v-if="orderDetail.admin_note" class="detail-note">Catatan: {{ orderDetail.admin_note }}</span>
         </div>
 
@@ -1042,7 +1041,6 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           </template>
           <template v-else-if="orderDetail.status === 'shipped'">
             <button class="ghost--sm" type="button" :disabled="savingOrder" @click="refreshTracking(orderDetail)">Tarik Tracking</button>
-            <button class="primary" type="button" :disabled="savingOrder" @click="completeOrder">Tandai Selesai</button>
           </template>
           <template v-else>
             <template v-if="orderDetail.available_collection_method && orderDetail.available_collection_method.length">
