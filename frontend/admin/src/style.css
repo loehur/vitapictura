@@ -1003,6 +1003,103 @@
     background: #fee4e2;
     color: var(--color-danger);
   }
+
+  /* ---- Order cards (ala ABFLab CS) ---- */
+  .order-cards {
+    display: grid;
+    gap: 0.9rem;
+  }
+  .order-card {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+  .order-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .order-card__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .order-card__title .link {
+    font-weight: 800;
+    font-size: 1rem;
+  }
+  .order-card__ref {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+  }
+  .order-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .order-card__time {
+    color: var(--color-muted);
+    font-size: 0.78rem;
+  }
+  .order-card__due {
+    color: var(--color-danger);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .order-card__items td {
+    font-size: 0.85rem;
+  }
+  .order-card__courier td {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+  }
+  .order-card__total {
+    text-align: right;
+    font-size: 0.9rem;
+  }
+  .order-card__total strong {
+    margin-left: 0.35rem;
+    font-size: 1.1rem;
+    color: var(--color-brand-700);
+  }
+  .order-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--color-line);
+  }
+  .order-card__tracking {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--radius-field);
+    background: var(--color-brand-50);
+  }
+  .order-track {
+    display: grid;
+    gap: 0.05rem;
+    font-size: 0.8rem;
+  }
+  .order-track strong {
+    color: var(--color-brand-700);
+  }
+  .order-track-list {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+  }
+  .ta-r { text-align: right; }
+  .text-danger { color: var(--color-danger); }
+  .text-success { color: var(--color-success); }
   .settings-form {
     display: grid;
     gap: 0.8rem;
