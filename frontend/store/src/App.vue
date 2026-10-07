@@ -768,11 +768,13 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <p v-if="checkoutLoading" class="description">Menghitung ongkir…</p>
         <p v-else-if="!checkoutQuote" class="description">Pilih alamat untuk melihat ongkir.</p>
         <p v-else-if="!checkoutQuote.rates.length" class="description">Tidak ada layanan kurir untuk alamat ini.</p>
-        <label v-for="(r, i) in checkoutQuote.rates" :key="i" class="co-rate" :class="{ 'is-active': checkoutRate === r }">
-          <input type="radio" name="co-rate" :checked="checkoutRate === r" @change="selectRate(r)">
-          <span class="co-rate__name">{{ r.courier_name }} {{ r.courier_service_name }}</span>
-          <strong>{{ rupiah.format(r.price) }}</strong>
-        </label>
+        <template v-else>
+          <label v-for="(r, i) in checkoutQuote.rates" :key="i" class="co-rate" :class="{ 'is-active': checkoutRate === r }">
+            <input type="radio" name="co-rate" :checked="checkoutRate === r" @change="selectRate(r)">
+            <span class="co-rate__name">{{ r.courier_name }} {{ r.courier_service_name }}</span>
+            <strong>{{ rupiah.format(r.price) }}</strong>
+          </label>
+        </template>
       </section>
 
       <section class="co-section co-summary">
