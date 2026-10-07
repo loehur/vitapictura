@@ -655,8 +655,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       <button v-if="canPayOrder" class="cta" type="button" :disabled="payingOrder" @click="payOrder">{{ payingOrder ? 'Memproses…' : 'Bayar sekarang' }}</button>
     </template>
     <template v-else-if="ordersOpen">
-      <p class="category">Akun</p>
-      <h1>Pesananmu</h1>
+      <p class="category">Pesanan</p>
 
       <div v-if="!orders.length" class="state">
         <p class="description">Belum ada pesanan.</p>
