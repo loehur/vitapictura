@@ -18,7 +18,8 @@ class CustomerAuth
         $lifetime=defined('Env::CUSTOMER_SESSION_LIFETIME')?(int)\Env::CUSTOMER_SESSION_LIFETIME:2592000;
         if($lifetime<=0){return;}
         $https=((!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')||((int)($_SERVER['SERVER_PORT']??0)===443)||(isset($_SERVER['HTTP_X_FORWARDED_PROTO'])&&$_SERVER['HTTP_X_FORWARDED_PROTO']==='https'));
-        session_set_cookie_params(['lifetime'=>$lifetime,'path'=>'/','httponly'=>true,'secure'=>$https,'samesite'=>$https?'None':'Lax']);
+        // Catatan: session_set_cookie_params() TIDAK boleh dipanggil saat sesi aktif
+        // (memicu warning → 500). Cukup set ulang cookie sesi lewat setcookie().
         setcookie(session_name(),session_id(),['expires'=>time()+$lifetime,'path'=>'/','httponly'=>true,'secure'=>$https,'samesite'=>$https?'None':'Lax']);
     }
     public static function logout(): void { unset($_SESSION[self::SESSION_KEY]); session_regenerate_id(true); }
