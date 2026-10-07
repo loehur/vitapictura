@@ -1106,6 +1106,14 @@
     gap: 0.5rem;
     margin-top: 0.7rem;
   }
+  .ship-warning {
+    margin: 0.8rem 0 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius-field);
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 0.85rem;
+  }
   .ship-advanced {
     margin-top: 0.8rem;
   }

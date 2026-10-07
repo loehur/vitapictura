@@ -136,6 +136,16 @@ async function loadTracking(order) { tracking.value = { ...tracking.value, [orde
 async function refreshTracking(order) { if (!order) return; savingOrder.value = true; try { const d = await api(`Orders/tracking/${order.id}`, {}); if (orderDetail.value && orderDetail.value.id === order.id) { orderDetail.value = { ...orderDetail.value, delivery: { ...(orderDetail.value.delivery || {}), tracking_history: d.history || [], status: d.status || orderDetail.value.delivery?.status } }; } await loadOrders(); flash('Tracking diperbarui.') } catch (e) { error.value = e.message } finally { savingOrder.value = false } }
 const shippingMethodsBusy = ref(false)
 async function fetchMethods(order) { if (!order) return; shippingMethodsBusy.value = true; try { const d = await api(`Orders/methods/${order.id}`, {}); if (orderDetail.value && orderDetail.value.id === order.id) { orderDetail.value = { ...orderDetail.value, available_collection_method: d.methods || [] }; } await loadOrders(); flash((d.methods && d.methods.length) ? 'Pilih metode pengiriman.' : 'Tidak ada metode tersedia — pakai Input manual.') } catch (e) { error.value = e.message } finally { shippingMethodsBusy.value = false } }
+// ---- Ship modal (proses kirim terpisah) ----
+const shipModal = ref(false)
+const shipOrder = ref(null)
+const shipConfirm = ref('')
+const shipBusy = ref(false)
+const shipMethods = ref([])
+function openShip(order) { shipOrder.value = order; shipConfirm.value = ''; shipMethods.value = Array.isArray(order.available_collection_method) ? [...order.available_collection_method] : []; shipModal.value = true; if (!shipMethods.value.length) loadShipMethods() }
+function closeShip() { shipModal.value = false; shipOrder.value = null; shipConfirm.value = '' }
+async function loadShipMethods() { if (!shipOrder.value) return; shipBusy.value = true; try { const d = await api(`Orders/methods/${shipOrder.value.id}`, {}); shipMethods.value = d.methods || [] } catch (e) { error.value = e.message } finally { shipBusy.value = false } }
+async function doShip(method) { if (!shipOrder.value) return; if (shipConfirm.value.trim() !== 'KIRIM') { error.value = 'Ketik KIRIM untuk konfirmasi.'; return } shipBusy.value = true; try { const num = shipOrder.value.order_number; await api(`Orders/book/${shipOrder.value.id}`, { collection_method: method || '' }); closeShip(); await loadOrders(); flash('Pesanan ' + num + ' diproses kirim (status: Dikirim).') } catch (e) { error.value = e.message } finally { shipBusy.value = false } }
 function formatDate(value) { if (!value) return ''; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) }
 
 // ---- Categories ----
@@ -542,7 +552,10 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
                     </select>
                     <span v-else class="status" :class="`status--${order.status}`">{{ order.status }}</span>
                   </td>
-                  <td data-label="Aksi"><button class="link" type="button" @click="openOrder(order)">Detail</button></td>
+                  <td data-label="Aksi">
+                    <button class="link" type="button" @click="openOrder(order)">Detail</button>
+                    <button v-if="order.status === 'processing'" class="link" type="button" @click="openShip(order)">Kirim</button>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -1035,21 +1048,6 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           <div v-if="orderDetail.delivery?.status"><span>Status kirim</span><strong>{{ orderDetail.delivery.status }}</strong></div>
         </div>
 
-        <div v-if="orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled' && orderDetail.status !== 'expired'" class="ship-actions">
-          <template v-if="!orderDetail.courier_company">
-            <button class="primary" type="button" :disabled="savingOrder" @click="completeOrder">Selesai / Siap Jemput</button>
-          </template>
-          <template v-else-if="orderDetail.status === 'shipped'">
-            <button class="ghost--sm" type="button" :disabled="savingOrder" @click="refreshTracking(orderDetail)">Tarik Tracking</button>
-          </template>
-          <template v-else>
-            <template v-if="orderDetail.available_collection_method && orderDetail.available_collection_method.length">
-              <button v-for="m in orderDetail.available_collection_method" :key="m" class="primary" type="button" :disabled="savingOrder" @click="bookOrderWith(orderDetail, m)">Kirim · {{ m }}</button>
-            </template>
-            <button v-else class="primary" type="button" :disabled="shippingMethodsBusy || savingOrder" @click="fetchMethods(orderDetail)">{{ shippingMethodsBusy ? 'Memuat metode…' : 'Kirim' }}</button>
-          </template>
-        </div>
-
         <div v-if="orderDetail.delivery?.tracking_history && orderDetail.delivery.tracking_history.length" class="order-track-list">
           <div v-for="(h, i) in orderDetail.delivery.tracking_history" :key="i" class="order-track">
             <strong>{{ h.status }}</strong>
@@ -1058,25 +1056,41 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
           </div>
         </div>
 
-        <details class="ship-advanced">
-          <summary>Input manual (kurir / resi) — lanjutan</summary>
-          <div class="field-row">
-            <label class="field"><span>Kurir</span><input v-model="deliveryForm.courier_company" placeholder="jne / jnt / sicepat"></label>
-            <label class="field"><span>Layanan</span><input v-model="deliveryForm.courier_service" placeholder="REG"></label>
-            <label class="field"><span>No. Resi</span><input v-model="deliveryForm.tracking_number"></label>
-            <label class="field"><span>Status kirim</span>
-              <select v-model="deliveryForm.status"><option value="pending">Pending</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select>
-            </label>
-          </div>
-          <div class="modal-actions">
-            <button class="primary" type="button" :disabled="savingOrder" @click="saveDelivery">Simpan pengiriman</button>
-          </div>
-        </details>
-
         <div class="modal-actions">
+          <button v-if="!orderDetail.courier_company && orderDetail.status !== 'completed' && orderDetail.status !== 'cancelled' && orderDetail.status !== 'expired'" class="primary" type="button" :disabled="savingOrder" @click="completeOrder">Selesai / Siap Jemput</button>
+          <button v-if="orderDetail.delivery?.biteship_order_id" class="ghost--sm" type="button" :disabled="savingOrder" @click="refreshTracking(orderDetail)">Tarik Tracking</button>
           <button class="ghost--sm" type="button" @click="closeOrder">Tutup</button>
         </div>
       </template>
+    </div>
+  </div>
+
+  <!-- Modal proses kirim (terpisah dari detail) -->
+  <div v-if="shipModal && shipOrder" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Proses kirim" @click.self="closeShip">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Proses Kirim · {{ shipOrder.order_number }} <span class="status" :class="`status--${shipOrder.status}`">{{ shipOrder.status }}</span></h3>
+        <button class="modal-x" type="button" aria-label="Tutup" @click="closeShip">×</button>
+      </div>
+      <div class="detail-grid">
+        <div><span>Pelanggan</span><strong>{{ shipOrder.customer_name }}</strong></div>
+        <div><span>Kurir</span><strong>{{ shipOrder.courier_company ? `${shipOrder.courier_company} ${shipOrder.courier_type || ''}` : 'Jemput ke Toko' }}</strong></div>
+        <div><span>Penerima</span><strong>{{ shipOrder.recipient?.recipientName }}</strong><small>{{ shipOrder.recipient?.recipientPhone }}</small></div>
+        <div><span>Alamat</span><strong>{{ shipOrder.recipient?.addressLine }}</strong><small>{{ [shipOrder.recipient?.areaName, shipOrder.recipient?.postalCode].filter(Boolean).join(' · ') }}</small></div>
+      </div>
+      <p class="ship-warning">Setelah diproses, status otomatis menjadi <strong>Dikirim</strong> dan tidak dapat dikembalikan. Kurir &amp; resi dibuat otomatis oleh Biteship. Pastikan pesanan sudah siap dikirim.</p>
+      <label class="field"><span>Ketik <b>KIRIM</b> untuk mengaktifkan tombol</span>
+        <input v-model="shipConfirm" autocomplete="off" placeholder="KIRIM">
+      </label>
+      <div class="ship-actions">
+        <template v-if="shipMethods.length">
+          <button v-for="m in shipMethods" :key="m" class="primary" type="button" :disabled="shipBusy || shipConfirm.trim() !== 'KIRIM'" @click="doShip(m)">{{ shipBusy ? 'Memproses…' : `Kirim · ${m}` }}</button>
+        </template>
+        <template v-else>
+          <button class="ghost--sm" type="button" :disabled="shipBusy" @click="loadShipMethods">{{ shipBusy ? 'Memuat…' : 'Muat metode' }}</button>
+          <button class="primary" type="button" :disabled="shipBusy || shipConfirm.trim() !== 'KIRIM'" @click="doShip('')">{{ shipBusy ? 'Memproses…' : 'Proses Kirim' }}</button>
+        </template>
+      </div>
     </div>
   </div>
 

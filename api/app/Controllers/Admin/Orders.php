@@ -75,9 +75,10 @@ class Orders extends Controller {
   $method=trim((string)($this->getBody()['collection_method']??''));
   $order=$this->db()->query('SELECT * FROM vp_orders WHERE id=? LIMIT 1',[$id])->row_array();
   if(!$order)$this->error('Order not found',404);
+  if($order['status']!=='processing')$this->error('Pesanan belum berstatus Processing',422);
   try{
    $r=Shipping::bookBiteship($this->db(),$order,$method);
-   if(in_array($order['status'],['paid','processing','pending_payment'],true))$this->db()->update('vp_orders',['status'=>'shipped','updated_at'=>$GLOBALS['now']??date('Y-m-d H:i:s')],['id'=>$id]);
+   $this->db()->update('vp_orders',['status'=>'shipped','updated_at'=>$GLOBALS['now']??date('Y-m-d H:i:s')],['id'=>$id]);
    $this->success($r,'Pesanan dikirim');
   }catch(\Throwable $e){$this->error($e->getMessage(),422);}
  }
