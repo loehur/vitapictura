@@ -6,7 +6,7 @@ const catalog = ref({ categories: [], featured: [] })
 const allProducts = ref([])
 const activeCategory = ref(null)
 const product = ref(null)
-const hasDescriptionTab = computed(() => (product.value?.tabs || []).some((t) => String(t.title || '').trim().toLowerCase() === 'deskripsi'))
+const hasTabs = computed(() => (product.value?.tabs || []).length > 0)
 const loading = ref(true)
 const error = ref('')
 const catalogError = ref('')
@@ -933,7 +933,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <div class="pd-tabbody" v-html="product.tabs[activeTab]?.html || ''"></div>
       </div>
 
-      <section v-if="product.description && !hasDescriptionTab" class="pd-desc">
+      <section v-if="product.description && !hasTabs" class="pd-desc">
         <h2>Deskripsi</h2>
         <p class="pd-desc__body">{{ product.description }}</p>
       </section>

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import MediaLibrary from './MediaLibrary.vue'
 import MediaPicker from './MediaPicker.vue'
+import RichTextEditor from './RichTextEditor.vue'
 
 const user = ref(null)
 const error = ref('')
@@ -355,11 +356,11 @@ const tabsLoading = ref(false)
 const tabsProduct = ref({ id: null, name: '' })
 const tabModal = ref(false)
 const tabSaving = ref(false)
-const tabForm = ref({ id: null, product_id: null, title: '', content_html: '' })
+const tabForm = ref({ id: null, product_id: null, title: '', sort_order: 0, content_html: '' })
 function openTabs() { if (!prodForm.value.id) return; tabsProduct.value = { id: prodForm.value.id, name: prodForm.value.name }; tabsModal.value = true; loadTabs() }
 function closeTabs() { tabsModal.value = false; tabsList.value = []; tabModal.value = false }
 async function loadTabs() { tabsLoading.value = true; try { tabsList.value = (await api(`Products/tabs/${tabsProduct.value.id}`)).items || [] } catch (e) { error.value = e.message } finally { tabsLoading.value = false } }
-function openTab(tab) { tabForm.value = tab ? { id: tab.id, product_id: tabsProduct.value.id, title: tab.title, content_html: tab.content_html || '' } : { id: null, product_id: tabsProduct.value.id, title: '', content_html: '' }; tabModal.value = true }
+function openTab(tab) { tabForm.value = tab ? { id: tab.id, product_id: tabsProduct.value.id, title: tab.title, sort_order: tab.sort_order, content_html: tab.content_html || '' } : { id: null, product_id: tabsProduct.value.id, title: '', sort_order: tabsList.value.length + 1, content_html: '' }; tabModal.value = true }
 async function saveTab() { tabSaving.value = true; try { await api(tabForm.value.id ? `Products/save-tab/${tabForm.value.id}` : 'Products/save-tab', { ...tabForm.value }); tabModal.value = false; await loadTabs(); flash('Tab disimpan.') } catch (e) { error.value = e.message } finally { tabSaving.value = false } }
 async function removeTab(tab) { if (!window.confirm(`Hapus tab "${tab.title}"?`)) return; try { await api(`Products/remove-tab/${tab.id}`, {}); await loadTabs(); flash('Tab dihapus.') } catch (e) { error.value = e.message } }
 
@@ -803,7 +804,6 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
         </label>
         <label class="check check--end"><input v-model="prodForm.is_featured" type="checkbox"> Unggulan</label>
         <label class="field span-2"><span>Deskripsi singkat</span><input v-model="prodForm.short_description"></label>
-        <label class="field span-2"><span>Deskripsi</span><textarea v-model="prodForm.description" rows="3"></textarea></label>
         <div class="field span-2">
           <span>Gambar utama</span>
           <div v-if="prodForm.cover_image_url" class="media-field-preview"><img :src="mediaUrl(prodForm.cover_image_url)" alt="Pratinjau gambar utama"></div>
@@ -1144,13 +1144,18 @@ onMounted(async () => { try { user.value = await api('Auth/me'); view.value = 'd
 
   <!-- Modal form tab deskripsi -->
   <div v-if="tabModal" class="modal-overlay modal-overlay--top2" role="dialog" aria-modal="true" aria-label="Form tab deskripsi" @click.self="tabModal = false">
-    <form class="modal-card modal-card--wide" @submit.prevent="saveTab">
+    <form class="modal-card modal-card--xl" @submit.prevent="saveTab">
       <div class="modal-head">
         <h3>{{ tabForm.id ? 'Edit tab' : 'Tambah tab' }}</h3>
         <button class="modal-x" type="button" aria-label="Tutup" @click="tabModal = false">×</button>
       </div>
-      <label class="field"><span>Judul tab</span><input v-model="tabForm.title" required placeholder="Contoh: Ukuran Pas Foto"></label>
-      <label class="field"><span>Isi tab (HTML)</span><textarea v-model="tabForm.content_html" rows="10" placeholder="&lt;p&gt;Tulis di sini...&lt;/p&gt;"></textarea></label>
+      <div class="field-row">
+        <label class="field"><span>Judul tab</span><input v-model="tabForm.title" required placeholder="Contoh: Ukuran Pas Foto"></label>
+        <label class="field"><span>Urutan</span><input v-model.number="tabForm.sort_order" type="number" min="0"></label>
+      </div>
+      <label class="field"><span>Isi tab</span>
+        <RichTextEditor v-model="tabForm.content_html" :min-height="300" placeholder="Tulis isi tab di sini..." />
+      </label>
       <div class="modal-actions">
         <button class="ghost--sm" type="button" @click="tabModal = false">Batal</button>
         <button class="primary" type="submit" :disabled="tabSaving">{{ tabSaving ? 'Menyimpan…' : 'Simpan' }}</button>
