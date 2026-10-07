@@ -92,6 +92,18 @@ class WhatsApp
         return self::toCustomer(self::orderPhone($order), $text);
     }
 
+    public static function orderExpired(array $order, float $hours = 25): array
+    {
+        $ref = (string) ($order['order_number'] ?? '');
+        $name = trim((string) ($order['full_name'] ?? $order['customer_name'] ?? ''));
+        $text = 'VitaPictura, order *EXPIRED* (belum dibayar > ' . (int) $hours . ' jam). REF#' . $ref;
+        if ($name !== '') {
+            $text .= ' a/n ' . $name;
+        }
+        $text .= '.';
+        return self::toAdmin($text);
+    }
+
     public static function adminAlert(string $text): array
     {
         return self::toAdmin($text);

@@ -58,6 +58,14 @@ class Env
     const WASERV_ENABLED = true;
 
     /**
+     * Cron/penjadwal (endpoint /Cron/*). Set token acak di production,
+     * panggil dengan ?token=... atau header X-Cron-Token.
+     */
+    const CRON_TOKEN = '';
+    /** Ambang order pending_payment dianggap expired, dalam jam (ABFLab: 25). */
+    const ORDER_EXPIRY_HOURS = 25;
+
+    /**
      * Database credentials per environment.
      * Index 0 = database utama.
      */
