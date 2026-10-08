@@ -837,21 +837,19 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             </div>
             <div class="ev-photo__actions">
               <button v-if="ph.priceStandard != null" class="cta" type="button"
-                :class="{ 'is-added': !!eventCartPhotoVariant[ph.id] }"
-                :disabled="!!eventCartPhotoVariant[ph.id]"
+                :class="{ 'is-added': eventCartPhotoVariant[ph.id] === 'standard' }"
+                :disabled="eventCartPhotoVariant[ph.id] === 'standard'"
                 @click="addEventPhoto(ph, 'standard')">
                 <template v-if="eventCartPhotoVariant[ph.id] === 'standard'">✓ Di Keranjang</template>
-                <template v-else-if="eventCartPhotoVariant[ph.id]">Di Keranjang (Original)</template>
                 <template v-else-if="freeAvailable > 0">Standar · <b>Gratis</b><span class="ev-free-remaining"> · sisa {{ freeAvailable }}</span></template>
                 <template v-else>Standar {{ rupiah.format(ph.priceStandard) }}</template>
               </button>
               <button v-else class="ghost" type="button" disabled title="Harga file standar belum diatur penyelenggara">Standar · belum tersedia</button>
               <button v-if="ph.priceOriginal != null" class="ghost" type="button"
-                :class="{ 'is-added': !!eventCartPhotoVariant[ph.id] }"
-                :disabled="!!eventCartPhotoVariant[ph.id]"
+                :class="{ 'is-added': eventCartPhotoVariant[ph.id] === 'original' }"
+                :disabled="eventCartPhotoVariant[ph.id] === 'original'"
                 @click="addEventPhoto(ph, 'original')">
                 <template v-if="eventCartPhotoVariant[ph.id] === 'original'">✓ Di Keranjang</template>
-                <template v-else-if="eventCartPhotoVariant[ph.id]">Di Keranjang (Standar)</template>
                 <template v-else>Original {{ rupiah.format(ph.priceOriginal) }}</template>
               </button>
               <button v-else class="ghost" type="button" disabled title="Harga file original belum diatur penyelenggara">Original · belum tersedia</button>
