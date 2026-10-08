@@ -1778,3 +1778,9 @@
 /* Badge di halaman produk */
 .pd-promo { margin: 0.3rem 0 0; padding: 0.5rem 0.7rem; border-radius: 0.6rem; background: var(--color-brand-50); border: 1px solid var(--color-brand-200); color: var(--color-brand-700); font-weight: 700; font-size: 0.9rem; }
 .pd-promo small { font-weight: 500; opacity: 0.85; }
+
+/* Tombol varian yang sudah masuk keranjang */
+.ev-photo__actions .cta.is-added,
+.ev-photo__actions .ghost.is-added { background: #16a34a; border-color: #16a34a; color: #fff; opacity: 1; }
+.ev-photo__actions .cta.is-added:disabled,
+.ev-photo__actions .ghost.is-added:disabled { cursor: default; }

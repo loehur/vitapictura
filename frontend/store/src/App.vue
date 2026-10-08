@@ -87,6 +87,15 @@ const eventCart = ref({ items: [], total: 0, count: 0, freeQuota: 0, freeUsed: 0
 const eventCartCount = computed(() => Number(eventCart.value.count) || 0)
 const freeAvailable = computed(() => Number(eventCart.value.freeAvailable) || 0)
 const hasPaidStandardPhoto = computed(() => (eventCart.value.items || []).some((g) => (g.photos || []).some((p) => p.variant === 'standard' && !p.free)))
+const eventCartPhotoVariant = computed(() => {
+  const map = {}
+  for (const grp of eventCart.value.items || []) {
+    for (const ph of grp.photos || []) {
+      map[ph.photoId] = ph.variant
+    }
+  }
+  return map
+})
 const eventHasPrice = computed(() => (eventDetail.value?.photos || []).some((p) => p.priceStandard != null || p.priceOriginal != null))
 const checkoutHasProducts = ref(true)
 const customerFirstName = computed(() => (customer.value?.name || '').trim().split(/\s+/)[0] || 'Masuk')
@@ -827,12 +836,24 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
               <img :src="ph.previewUrl" :alt="'Foto ' + ph.id" loading="lazy" draggable="false" @contextmenu.prevent>
             </div>
             <div class="ev-photo__actions">
-              <button v-if="ph.priceStandard != null" class="cta" type="button" @click="addEventPhoto(ph, 'standard')">
-                <template v-if="freeAvailable > 0">Gratis<span class="ev-free-remaining"> · sisa {{ freeAvailable }}</span></template>
+              <button v-if="ph.priceStandard != null" class="cta" type="button"
+                :class="{ 'is-added': !!eventCartPhotoVariant[ph.id] }"
+                :disabled="!!eventCartPhotoVariant[ph.id]"
+                @click="addEventPhoto(ph, 'standard')">
+                <template v-if="eventCartPhotoVariant[ph.id] === 'standard'">✓ Di Keranjang</template>
+                <template v-else-if="eventCartPhotoVariant[ph.id]">Di Keranjang (Original)</template>
+                <template v-else-if="freeAvailable > 0">Standar · <b>Gratis</b><span class="ev-free-remaining"> · sisa {{ freeAvailable }}</span></template>
                 <template v-else>Standar {{ rupiah.format(ph.priceStandard) }}</template>
               </button>
               <button v-else class="ghost" type="button" disabled title="Harga file standar belum diatur penyelenggara">Standar · belum tersedia</button>
-              <button v-if="ph.priceOriginal != null" class="ghost" type="button" @click="addEventPhoto(ph, 'original')">Original {{ rupiah.format(ph.priceOriginal) }}</button>
+              <button v-if="ph.priceOriginal != null" class="ghost" type="button"
+                :class="{ 'is-added': !!eventCartPhotoVariant[ph.id] }"
+                :disabled="!!eventCartPhotoVariant[ph.id]"
+                @click="addEventPhoto(ph, 'original')">
+                <template v-if="eventCartPhotoVariant[ph.id] === 'original'">✓ Di Keranjang</template>
+                <template v-else-if="eventCartPhotoVariant[ph.id]">Di Keranjang (Standar)</template>
+                <template v-else>Original {{ rupiah.format(ph.priceOriginal) }}</template>
+              </button>
               <button v-else class="ghost" type="button" disabled title="Harga file original belum diatur penyelenggara">Original · belum tersedia</button>
             </div>
           </div>
