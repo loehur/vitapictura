@@ -1784,3 +1784,10 @@
 .ev-photo__actions .ghost.is-added { background: #16a34a; border-color: #16a34a; color: #fff; opacity: 1; }
 .ev-photo__actions .cta.is-added:disabled,
 .ev-photo__actions .ghost.is-added:disabled { cursor: default; }
+
+/* Tombol bagikan produk */
+.pd-share { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.pd-share__btn { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0; padding: 0.5rem 0.9rem; font-size: 0.85rem; cursor: pointer; }
+.pd-share__btn svg { width: 18px; height: 18px; }
+.pd-share__btn--wa { color: #1fa855; border-color: #1fa855; }
+.pd-share__btn--wa:hover { background: #1fa855; color: #fff; }
