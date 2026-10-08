@@ -75,7 +75,7 @@ function pushModalHistory() { if (modalHistory) return; modalHistory = true; win
 function popModalHistory() { if (!modalHistory) return; modalHistory = false; suppressPop = true; window.history.back() }
 function closeLoginModal() { loginOpen.value = false; popModalHistory() }
 const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
-const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0))
+const cartCount = computed(() => cart.value.items.reduce((n, item) => n + (Number(item.quantity) || 0), 0) + (Number(eventCart.value.count) || 0))
 const eventsOpen = ref(false)
 const eventList = ref([])
 const eventFrom = ref('')
@@ -442,7 +442,7 @@ async function addCart() {
 }
 async function openOrders() { return navigate('orders') }
 async function openProduct(slug) { return navigate('product', slug) }
-function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false; checkoutOpen.value = false; orderDetailOpen.value = false; eventsOpen.value = false }
+function resetViews() { cartOpen.value = false; ordersOpen.value = false; addressBook.value = false; addressModalOpen.value = false; checkoutOpen.value = false; orderDetailOpen.value = false; eventsOpen.value = false; eventDetail.value = null; product.value = null }
 const ROUTE_PATHS = { home: '/', cart: '/keranjang', orders: '/pesanan', account: '/akun', checkout: '/checkout', events: '/event' }
 function routePath(name, slug) { return name === 'product' ? `/produk/${encodeURIComponent(slug || '')}` : name === 'order' ? `/pesanan/${slug}` : name === 'event' ? `/event/${encodeURIComponent(slug || '')}` : (ROUTE_PATHS[name] || '/') }
 function parseRoute(path) {
@@ -527,8 +527,7 @@ async function loadEventList() {
 }
 async function loadEventsView() { resetViews(); eventsOpen.value = true; await loadEventList(); return true }
 async function loadEventView(slug) {
-  try { const data = await request(`/Store/Events/show/${encodeURIComponent(slug)}`); eventDetail.value = data } catch (e) { error.value = e.message; return false }
-  resetViews(); eventsOpen.value = true
+  try { const data = await request(`/Store/Events/show/${encodeURIComponent(slug)}`); resetViews(); eventDetail.value = data; eventsOpen.value = true } catch (e) { error.value = e.message; return false }
   return true
 }
 async function openEvents() { return navigate('events') }
@@ -558,7 +557,7 @@ async function navigate(name, slug) { profileOpen.value = false; const ok = awai
 function goHome() { return navigate('home') }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
-async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} }
+async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} await loadEventCart() }
 async function logoutCustomer() {
   profileOpen.value = false
   try { await post('/Customer/Auth/logout') } catch (e) {}
