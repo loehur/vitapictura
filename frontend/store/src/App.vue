@@ -83,8 +83,10 @@ const eventTo = ref('')
 const eventQuery = ref('')
 const eventLoading = ref(false)
 const eventDetail = ref(null)
-const eventCart = ref({ items: [], total: 0, count: 0 })
+const eventCart = ref({ items: [], total: 0, count: 0, freeQuota: 0, freeUsed: 0, freeAvailable: 0 })
 const eventCartCount = computed(() => Number(eventCart.value.count) || 0)
+const freeAvailable = computed(() => Number(eventCart.value.freeAvailable) || 0)
+const hasPaidStandardPhoto = computed(() => (eventCart.value.items || []).some((g) => (g.photos || []).some((p) => p.variant === 'standard' && !p.free)))
 const eventHasPrice = computed(() => (eventDetail.value?.photos || []).some((p) => p.priceStandard != null || p.priceOriginal != null))
 const checkoutHasProducts = ref(true)
 const customerFirstName = computed(() => (customer.value?.name || '').trim().split(/\s+/)[0] || 'Masuk')
@@ -424,8 +426,17 @@ async function uploadSelection() {
 }
 async function loadCart() { cart.value = await request('/Customer/Cart/index') }
 async function openCart() { return navigate('cart') }
-async function updateCartQty(item, quantity) { try { await post(`/Customer/Cart/update/${item.id}`, { quantity }); await loadCart() } catch(e){ error.value=e.message } }
-async function removeCartItem(item) { try { await post(`/Customer/Cart/remove/${item.id}`); await loadCart(); flash('Item dihapus dari keranjang.') } catch(e){ error.value=e.message } }
+async function updateCartQty(item, quantity) { try { await post(`/Customer/Cart/update/${item.id}`, { quantity }); await loadCart(); await loadEventCart() } catch(e){ error.value=e.message } }
+async function removeCartItem(item) {
+  if (item.freePhotoQuota > 0) {
+    const used = Number(eventCart.value.freeUsed) || 0
+    const msg = used > 0
+      ? `Menghapus produk ini akan membatalkan ${used} foto gratis. Lanjut?`
+      : 'Menghapus produk ini akan membatalkan kuota foto gratis yang belum terpakai. Lanjut?'
+    if (!window.confirm(msg)) return
+  }
+  try { await post(`/Customer/Cart/remove/${item.id}`); await loadCart(); await loadEventCart(); flash('Item dihapus dari keranjang.') } catch(e){ error.value=e.message }
+}
 async function addCart() {
   if (!customer.value) { startGoogleLogin(); return }
   const missing = level1Groups.value.find((group) => group.isRequired && !optionSelection.value[group.id])
@@ -437,6 +448,7 @@ async function addCart() {
     if (fileMethod.value === '2' && linkDrive.value.trim()) note = `${note ? `${note} | ` : ''}Link Drive: ${linkDrive.value.trim()}`
     await post('/Customer/Cart/add', { product_id: product.value.id, option_value_ids: selectedValues.value.map((value) => value.id), quantity: Number(qty.value) || 1, note, upload_ids: uploadIds })
     await loadCart()
+    await loadEventCart()
     flash('Produk ditambahkan ke keranjang.')
     product.value = null
   } catch (e) { error.value = e.message } finally { addingToCart.value = false }
@@ -526,14 +538,19 @@ async function loadEventList() {
     if (data.to) eventTo.value = data.to
   } catch (e) { error.value = e.message } finally { eventLoading.value = false }
 }
-async function loadEventsView() { resetViews(); eventsOpen.value = true; await loadEventList(); return true }
+async function loadEventsView() { resetViews(); eventsOpen.value = true; await loadEventCart(); await loadEventList(); return true }
 async function loadEventView(slug) {
   try { const data = await request(`/Store/Events/show/${encodeURIComponent(slug)}`); resetViews(); eventDetail.value = data; eventsOpen.value = true } catch (e) { error.value = e.message; return false }
+  await loadEventCart()
   return true
 }
 async function openEvents() { return navigate('events') }
 async function openEvent(slug) { return navigate('event', slug) }
-async function loadEventCart() { try { eventCart.value = await request('/Customer/EventCart') } catch (e) { eventCart.value = { items: [], total: 0, count: 0 } } }
+async function loadEventCart() { try { eventCart.value = await request('/Customer/EventCart') } catch (e) { eventCart.value = { items: [], total: 0, count: 0, freeQuota: 0, freeUsed: 0, freeAvailable: 0 } } }
+async function claimEventFree() {
+  if (!customer.value) { startGoogleLogin(); return }
+  try { const data = await post('/Customer/EventCart/claim'); if (data) eventCart.value = data; flash('Kuota gratis diterapkan.') } catch (e) { error.value = e.message }
+}
 async function addEventPhoto(photo, variant) {
   if (!customer.value) { startGoogleLogin(); return }
   try { await post('/Customer/EventCart/add', { photo_id: photo.id, variant }); await loadEventCart(); flash('Foto ditambahkan ke keranjang.') } catch (e) { error.value = e.message }
@@ -557,6 +574,7 @@ async function applyRoute(route) {
 async function navigate(name, slug) { profileOpen.value = false; const ok = await applyRoute({ name, slug }); if (ok) pushRoute(name, slug); window.scrollTo({ top: 0, behavior: 'smooth' }); return ok }
 function goHome() { return navigate('home') }
 function scrollToCatalog() { document.getElementById('katalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+async function goToCatalog() { const ok = await navigate('home'); if (ok) { await nextTick(); scrollToCatalog() } }
 async function restoreSession() { try { customer.value = await request('/Customer/Auth/me') } catch {} }
 async function refreshCart() { if (!customer.value) return; try { cart.value = await request('/Customer/Cart/index') } catch {} await loadEventCart() }
 async function logoutCustomer() {
@@ -784,6 +802,18 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
         <p v-if="eventDetail.description" class="description">{{ eventDetail.description }}</p>
       </div>
 
+      <section class="ev-promo">
+        <div class="ev-promo__icon" aria-hidden="true">🎁</div>
+        <div class="ev-promo__body">
+          <span class="ev-promo__badge">PROMO</span>
+          <strong v-if="freeAvailable > 0">Kuota foto gratis kamu: {{ freeAvailable }}</strong>
+          <strong v-else>Foto Event GRATIS</strong>
+          <p v-if="freeAvailable > 0">Pilih foto event favoritmu dan klaim sekarang sebelum kuotanya hangus.</p>
+          <p v-else>Tambahkan produk Vita Pictura bertanda &ldquo;Gratis Foto Event&rdquo; ke keranjang, lalu klaim foto event pilihanmu tanpa biaya. Makin banyak produk, makin banyak foto gratis!</p>
+          <button class="cta ev-promo__cta" type="button" @click="freeAvailable > 0 ? openCart() : goToCatalog()">{{ freeAvailable > 0 ? 'Klaim di Keranjang' : 'Lihat Produk' }}</button>
+        </div>
+      </section>
+
       <section class="ev-panel">
         <div class="ev-panel__head">
           <strong>Galeri Foto</strong>
@@ -797,7 +827,10 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
               <img :src="ph.previewUrl" :alt="'Foto ' + ph.id" loading="lazy" draggable="false" @contextmenu.prevent>
             </div>
             <div class="ev-photo__actions">
-              <button v-if="ph.priceStandard != null" class="cta" type="button" @click="addEventPhoto(ph, 'standard')">Standar {{ rupiah.format(ph.priceStandard) }}</button>
+              <button v-if="ph.priceStandard != null" class="cta" type="button" @click="addEventPhoto(ph, 'standard')">
+                <template v-if="freeAvailable > 0">Gratis<span class="ev-free-remaining"> · sisa {{ freeAvailable }}</span></template>
+                <template v-else>Standar {{ rupiah.format(ph.priceStandard) }}</template>
+              </button>
               <button v-else class="ghost" type="button" disabled title="Harga file standar belum diatur penyelenggara">Standar · belum tersedia</button>
               <button v-if="ph.priceOriginal != null" class="ghost" type="button" @click="addEventPhoto(ph, 'original')">Original {{ rupiah.format(ph.priceOriginal) }}</button>
               <button v-else class="ghost" type="button" disabled title="Harga file original belum diatur penyelenggara">Original · belum tersedia</button>
@@ -807,6 +840,18 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </section>
     </template>
     <template v-else-if="eventsOpen">
+      <section class="ev-promo">
+        <div class="ev-promo__icon" aria-hidden="true">🎁</div>
+        <div class="ev-promo__body">
+          <span class="ev-promo__badge">PROMO</span>
+          <strong v-if="freeAvailable > 0">Kuota foto gratis kamu: {{ freeAvailable }}</strong>
+          <strong v-else>Foto Event GRATIS</strong>
+          <p v-if="freeAvailable > 0">Pilih foto event favoritmu dan klaim sekarang sebelum kuotanya hangus.</p>
+          <p v-else>Tambahkan produk Vita Pictura bertanda &ldquo;Gratis Foto Event&rdquo; ke keranjang, lalu klaim foto event pilihanmu tanpa biaya. Makin banyak produk, makin banyak foto gratis!</p>
+          <button class="cta ev-promo__cta" type="button" @click="freeAvailable > 0 ? openCart() : goToCatalog()">{{ freeAvailable > 0 ? 'Klaim di Keranjang' : 'Lihat Produk' }}</button>
+        </div>
+      </section>
+
       <section class="ev-panel">
         <div class="ev-search">
           <label class="field"><span>Dari</span><input v-model="eventFrom" type="date"></label>
@@ -841,6 +886,14 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </div>
 
       <div v-else class="cart">
+        <section v-if="eventCart.freeQuota > 0" class="ev-quota">
+          <div class="ev-quota__info">
+            <strong>Kuota foto gratis</strong>
+            <span>{{ eventCart.freeUsed }}/{{ eventCart.freeQuota }} terpakai<span v-if="freeAvailable > 0"> · sisa {{ freeAvailable }}</span></span>
+          </div>
+          <button class="cta ev-quota__btn" type="button" :disabled="!hasPaidStandardPhoto || freeAvailable === 0" @click="claimEventFree()">Klaim gratis</button>
+        </section>
+
         <article v-for="item in cart.items" :key="item.id" class="cart-item">
           <div v-if="item.image" class="cart-item__media">
             <img :src="item.image" :alt="item.name">
@@ -873,7 +926,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <div class="cart-item__body">
             <strong>{{ grp.eventName }} <span class="cart-item__choice">{{ grp.qty }} foto</span></strong>
             <div class="cart-item__event-photos">
-              <img v-for="p in grp.photos" :key="p.cartId" :src="p.previewUrl" :alt="'Foto ' + p.photoId" loading="lazy" draggable="false">
+              <img v-for="p in grp.photos" :key="p.cartId" :src="p.previewUrl" :alt="'Foto ' + p.photoId" :class="{ 'is-free': p.free }" loading="lazy" draggable="false">
             </div>
             <div class="cart-item__row">
               <button class="icon-danger" type="button" aria-label="Hapus foto event" title="Hapus" @click="removeEventCartGroup(grp)">
@@ -995,6 +1048,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       <section v-if="eventCart.items.length" class="co-section co-summary">
         <div class="co-head"><strong>Foto Event</strong></div>
         <div v-for="grp in eventCart.items" :key="'ck' + grp.eventId"><span>{{ grp.eventName }} ({{ grp.qty }} foto)</span><strong>{{ rupiah.format(grp.subtotal) }}</strong></div>
+        <div v-if="checkoutQuote && checkoutQuote.eventFreeCount > 0" class="co-free"><span>Gratis ({{ checkoutQuote.eventFreeCount }} foto)</span><strong>-{{ rupiah.format(checkoutQuote.eventFreeAmount || 0) }}</strong></div>
       </section>
 
       <section class="co-section co-summary">
@@ -1023,6 +1077,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <p class="category">{{ product.category.name }}</p>
           <h1>{{ product.name }}</h1>
           <p class="price">Mulai dari {{ rupiah.format(product.price) }}</p>
+          <p v-if="product.freePhotoQuota > 0" class="pd-promo">🎁 Gratis {{ product.freePhotoQuota }} foto event per produk <small>(kelipatan jumlah · 1× per pesanan)</small></p>
           <p v-if="product.shortDescription" class="pd-shortdesc">{{ product.shortDescription }}</p>
 
           <div v-for="group in level1Groups" :key="group.id" class="pd-field">

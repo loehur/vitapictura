@@ -1748,3 +1748,33 @@
 .od-photo { display: grid; gap: 0.25rem; }
 .od-photo img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 0.6rem; border: 1px solid var(--color-line); }
 .od-photo__row { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; font-size: 0.78rem; }
+
+/* ---- Promo kuota foto gratis ---- */
+.ev-promo { display: grid; grid-template-columns: auto 1fr; gap: 0.8rem; align-items: start; padding: 1rem 1.1rem; margin: 0 0 1.1rem; border: 1px solid var(--color-brand-200); border-radius: var(--radius-card); background: linear-gradient(135deg, var(--color-brand-100), var(--color-accent-100)); box-shadow: var(--shadow-soft); }
+.ev-promo__icon { font-size: 1.9rem; line-height: 1; }
+.ev-promo__body { display: grid; gap: 0.3rem; }
+.ev-promo__badge { justify-self: start; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; background: var(--color-brand-600); padding: 0.15rem 0.5rem; border-radius: 999px; }
+.ev-promo__body strong { color: var(--color-brand-800); font-size: 1.05rem; }
+.ev-promo__body p { margin: 0; font-size: 0.88rem; color: var(--color-brand-700); }
+.ev-promo__cta { justify-self: start; margin-top: 0.35rem; }
+
+/* Panel kuota di cart */
+.ev-quota { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; border: 1px dashed var(--color-brand-300, var(--color-brand-200)); border-radius: var(--radius-card); background: var(--color-brand-50); }
+.ev-quota__info { display: grid; gap: 0.1rem; }
+.ev-quota__info strong { color: var(--color-brand-800); }
+.ev-quota__info span { font-size: 0.82rem; color: var(--color-brand-700); }
+.ev-quota__btn { margin-top: 0; padding: 0.5rem 1rem; font-size: 0.85rem; }
+.ev-quota__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Sisa kuota di tombol gratis */
+.ev-free-remaining { opacity: 0.85; font-weight: 600; }
+
+/* Foto event gratis di cart */
+.cart-item__event-photos img.is-free { border: 2px solid #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2); }
+
+/* Baris gratis di checkout */
+.co-free { display: flex; justify-content: space-between; gap: 0.5rem; color: #16a34a; font-weight: 600; }
+
+/* Badge di halaman produk */
+.pd-promo { margin: 0.3rem 0 0; padding: 0.5rem 0.7rem; border-radius: 0.6rem; background: var(--color-brand-50); border: 1px solid var(--color-brand-200); color: var(--color-brand-700); font-weight: 700; font-size: 0.9rem; }
+.pd-promo small { font-weight: 500; opacity: 0.85; }

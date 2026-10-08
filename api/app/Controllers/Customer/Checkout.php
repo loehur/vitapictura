@@ -1,12 +1,13 @@
 <?php
 namespace App\Controllers\Customer;
-use App\Core\Controller;use App\Helpers\CustomerAuth;use App\Services\Biteship;
+use App\Core\Controller;use App\Helpers\CustomerAuth;use App\Services\Biteship;use App\Services\EventQuota;
 class Checkout extends Controller {
  public function quote():void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$b=$this->getBody();
+  EventQuota::clamp($this->db(),(int)$u['id']);
   $cart=$this->cart((int)$u['id']);$photos=$this->eventPhotos((int)$u['id']);
   if(!$cart&&!$photos)$this->error('Keranjang kosong',422);
-  $out=['address'=>null,'subtotal'=>$this->subtotal($cart),'eventSubtotal'=>$this->eventSubtotal($photos),'rates'=>[]];
+  $out=['address'=>null,'subtotal'=>$this->subtotal($cart),'eventSubtotal'=>$this->eventSubtotal($photos),'eventFreeCount'=>$this->eventFreeCount($photos),'eventFreeAmount'=>$this->eventFreeAmount($photos),'rates'=>[]];
   if($cart){
    $addressId=(int)($b['address_id']??0);if($addressId<=0)$this->error('Pilih alamat pengiriman',422);
    $address=$this->address($addressId,(int)$u['id']);$out['address']=$this->snapshot($address);
@@ -16,6 +17,7 @@ class Checkout extends Controller {
  }
  public function create():void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$b=$this->getBody();
+  EventQuota::clamp($this->db(),(int)$u['id']);
   $cart=$this->cart((int)$u['id']);$photos=$this->eventPhotos((int)$u['id']);
   if(!$cart&&!$photos)$this->error('Keranjang kosong',422);
   $now=$GLOBALS['now']??date('Y-m-d H:i:s');
@@ -43,10 +45,10 @@ class Checkout extends Controller {
    }
    $byEvent=[];foreach($photos as $p)$byEvent[(int)$p['event_id']][]=$p;
    foreach($byEvent as $eventId=>$list){
-    $sum=0.0;foreach($list as $p)$sum+=(float)$p['unit_price'];
+    $sum=0.0;foreach($list as $p)$sum+=$this->eventPhotoPrice($p);
     $ev=$this->db()->query('SELECT name FROM vp_events WHERE id=? LIMIT 1',[(int)$eventId])->row_array();
     $itemId=(int)$this->db()->insert('vp_order_items',['order_id'=>$id,'item_type'=>'event_photo','configuration_id'=>null,'ref_id'=>(int)$eventId,'product_name'=>($ev['name']??('Event #'.$eventId)),'selections_snapshot'=>null,'quantity'=>count($list),'unit_price'=>$sum,'total_price'=>$sum]);
-    foreach($list as $p)$this->db()->insert('vp_order_item_photos',['order_item_id'=>$itemId,'photo_id'=>(int)$p['photo_id'],'variant'=>$p['variant'],'price'=>$p['unit_price'],'created_at'=>$now]);
+    foreach($list as $p)$this->db()->insert('vp_order_item_photos',['order_item_id'=>$itemId,'photo_id'=>(int)$p['photo_id'],'variant'=>$p['variant'],'price'=>$this->eventPhotoPrice($p),'is_free'=>((int)($p['free_claimed']??0))===1?1:0,'created_at'=>$now]);
    }
    $this->db()->query('DELETE FROM vp_cart_items WHERE customer_id=?',[(int)$u['id']]);
    $this->db()->query('DELETE FROM vp_cart_event_photos WHERE customer_id=?',[(int)$u['id']]);
@@ -58,9 +60,12 @@ class Checkout extends Controller {
  private function customer():array{$u=CustomerAuth::user();if(!$u)$this->error('Unauthorized',401);return $u;}
  private function address(int $id,int $c):array{$r=$this->db()->query('SELECT * FROM vp_customer_addresses WHERE id=? AND customer_id=? LIMIT 1',[$id,$c])->row_array();if(!$r)$this->error('Alamat tidak ditemukan',404);return $r;}
  private function cart(int $id):array{return $this->db()->query('SELECT ci.*,c.selections_json,c.note,p.name,p.weight_grams,p.length_mm,p.width_mm,p.height_mm FROM vp_cart_items ci INNER JOIN vp_product_configurations c ON c.id=ci.configuration_id INNER JOIN vp_products p ON p.id=c.product_id WHERE ci.customer_id=?',[$id])->result_array()?:[];}
- private function eventPhotos(int $id):array{return $this->db()->query('SELECT id,event_id,photo_id,variant,unit_price FROM vp_cart_event_photos WHERE customer_id=? ORDER BY event_id,id',[$id])->result_array()?:[];}
+ private function eventPhotos(int $id):array{return $this->db()->query('SELECT id,event_id,photo_id,variant,unit_price,free_claimed FROM vp_cart_event_photos WHERE customer_id=? ORDER BY event_id,id',[$id])->result_array()?:[];}
  private function subtotal(array $c):float{return array_sum(array_map(fn($r)=>(float)$r['unit_price']*(int)$r['quantity'],$c));}
- private function eventSubtotal(array $p):float{return array_sum(array_map(fn($r)=>(float)$r['unit_price'],$p));}
+ private function eventPhotoPrice(array $p):float{return ((int)($p['free_claimed']??0))===1?0.0:(float)$p['unit_price'];}
+ private function eventSubtotal(array $p):float{return array_sum(array_map(fn($r)=>$this->eventPhotoPrice($r),$p));}
+ private function eventFreeCount(array $p):int{return count(array_filter($p,fn($r)=>((int)($r['free_claimed']??0))===1));}
+ private function eventFreeAmount(array $p):float{return array_sum(array_map(fn($r)=>((int)($r['free_claimed']??0))===1?(float)$r['unit_price']:0.0,$p));}
  private function items(array $c):array{return array_map(fn($r)=>['name'=>$r['name'],'description'=>'Vita Pictura order','value'=>(float)$r['unit_price']*(int)$r['quantity'],'length'=>(int)($r['length_mm']??0),'width'=>(int)($r['width_mm']??0),'height'=>(int)($r['height_mm']??0),'weight'=>(int)($r['weight_grams']??0),'quantity'=>(int)$r['quantity']],$c);}
  private function snapshot(array $a):array{return ['recipientName'=>$a['recipient_name'],'recipientPhone'=>$a['recipient_phone'],'addressLine'=>$a['address_line'],'notes'=>trim((string)($a['notes']??'')),'areaId'=>$a['area_id'],'areaName'=>$a['area_name'],'provinceName'=>$a['province_name']??null,'regencyName'=>$a['regency_name']??null,'districtName'=>$a['district_name']??null,'villageName'=>$a['village_name']??null,'postalCode'=>$a['postal_code'],'latitude'=>(float)$a['latitude'],'longitude'=>(float)$a['longitude']];}
 }

@@ -1,23 +1,11 @@
 <?php
 namespace App\Controllers\Customer;
-use App\Core\Controller;use App\Helpers\CustomerAuth;use App\Services\Events;
+use App\Core\Controller;use App\Helpers\CustomerAuth;use App\Services\EventQuota;use App\Services\Events;
 class EventCart extends Controller {
  public function index():void{
   $this->handleCors();$u=$this->customer();
-  $rows=$this->db()->query('SELECT c.id,c.event_id,c.photo_id,c.variant,c.unit_price,e.name event_name,e.slug event_slug,e.event_date FROM vp_cart_event_photos c INNER JOIN vp_events e ON e.id=c.event_id WHERE c.customer_id=? ORDER BY e.event_date DESC,c.id',[(int)$u['id']])->result_array()?:[];
-  $previews=[];
-  if($rows){$ids=array_map(fn($r)=>(int)$r['photo_id'],$rows);$ph=$this->db()->query('SELECT id,preview_key FROM vp_event_photos WHERE id IN ('.implode(',',$ids).')')->result_array()?:[];foreach($ph as $p)$previews[(int)$p['id']]=Events::previewUrl($p['preview_key']);}
-  $events=[];
-  foreach($rows as $r){
-   $eid=(int)$r['event_id'];
-   if(!isset($events[$eid]))$events[$eid]=['eventId'=>$eid,'eventName'=>$r['event_name'],'eventSlug'=>$r['event_slug'],'qty'=>0,'subtotal'=>0.0,'photos'=>[]];
-   $events[$eid]['qty']++;
-   $events[$eid]['subtotal']+=(float)$r['unit_price'];
-   $events[$eid]['photos'][]=['cartId'=>(int)$r['id'],'photoId'=>(int)$r['photo_id'],'variant'=>$r['variant'],'price'=>(float)$r['unit_price'],'previewUrl'=>$previews[(int)$r['photo_id']]??''];
-  }
-  $items=array_values($events);
-  $total=0.0;foreach($items as $it)$total+=$it['subtotal'];
-  $this->success(['items'=>$items,'total'=>$total,'count'=>count($rows)],'Event cart loaded');
+  EventQuota::clamp($this->db(),(int)$u['id']);
+  $this->success($this->buildCart((int)$u['id']),'Event cart loaded');
  }
  public function add():void{
   $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$b=$this->getBody();
@@ -32,8 +20,39 @@ class EventCart extends Controller {
   $existing=$this->db()->query('SELECT id FROM vp_cart_event_photos WHERE customer_id=? AND photo_id=? LIMIT 1',[(int)$u['id'],$photoId])->row_array();
   if($existing)$this->db()->update('vp_cart_event_photos',['variant'=>$variant,'unit_price'=>$price],['id'=>(int)$existing['id']]);
   else $this->db()->insert('vp_cart_event_photos',['customer_id'=>(int)$u['id'],'event_id'=>(int)$p['event_id'],'photo_id'=>$photoId,'variant'=>$variant,'unit_price'=>$price,'created_at'=>$now]);
-  $this->success(null,'Foto ditambahkan ke keranjang');
+  EventQuota::apply($this->db(),(int)$u['id']);
+  $this->success($this->buildCart((int)$u['id']),'Foto ditambahkan ke keranjang');
  }
- public function remove($id=null):void{$this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();$this->db()->delete('vp_cart_event_photos',['id'=>(int)$id,'customer_id'=>(int)$u['id']]);$this->success(null,'Foto dihapus dari keranjang');}
+ public function claim():void{
+  $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();
+  EventQuota::apply($this->db(),(int)$u['id']);
+  $this->success($this->buildCart((int)$u['id']),'Klaim gratis diperbarui');
+ }
+ public function remove($id=null):void{
+  $this->handleCors();if(!$this->isPost())$this->error('Method not allowed',405);$u=$this->customer();
+  $this->db()->delete('vp_cart_event_photos',['id'=>(int)$id,'customer_id'=>(int)$u['id']]);
+  EventQuota::clamp($this->db(),(int)$u['id']);
+  $this->success($this->buildCart((int)$u['id']),'Foto dihapus dari keranjang');
+ }
+ private function buildCart(int $customerId):array{
+  $rows=$this->db()->query('SELECT c.id,c.event_id,c.photo_id,c.variant,c.unit_price,c.free_claimed,e.name event_name,e.slug event_slug,e.event_date FROM vp_cart_event_photos c INNER JOIN vp_events e ON e.id=c.event_id WHERE c.customer_id=? ORDER BY e.event_date DESC,c.id',[$customerId])->result_array()?:[];
+  $previews=[];
+  if($rows){$ids=array_map(fn($r)=>(int)$r['photo_id'],$rows);$ph=$this->db()->query('SELECT id,preview_key FROM vp_event_photos WHERE id IN ('.implode(',',$ids).')')->result_array()?:[];foreach($ph as $p)$previews[(int)$p['id']]=Events::previewUrl($p['preview_key']);}
+  $events=[];$total=0.0;$freeUsed=0;
+  foreach($rows as $r){
+   $eid=(int)$r['event_id'];
+   if(!isset($events[$eid]))$events[$eid]=['eventId'=>$eid,'eventName'=>$r['event_name'],'eventSlug'=>$r['event_slug'],'qty'=>0,'subtotal'=>0.0,'photos'=>[]];
+   $price=(float)$r['unit_price'];
+   $free=((int)$r['free_claimed'])===1;
+   $eff=$free?0.0:$price;
+   $events[$eid]['qty']++;
+   $events[$eid]['subtotal']+=$eff;
+   if($free)$freeUsed++;
+   $total+=$eff;
+   $events[$eid]['photos'][]=['cartId'=>(int)$r['id'],'photoId'=>(int)$r['photo_id'],'variant'=>$r['variant'],'price'=>$price,'effectivePrice'=>$eff,'free'=>$free,'previewUrl'=>$previews[(int)$r['photo_id']]??''];
+  }
+  $quota=EventQuota::total($this->db(),$customerId);
+  return ['items'=>array_values($events),'total'=>$total,'count'=>count($rows),'freeQuota'=>$quota,'freeUsed'=>$freeUsed,'freeAvailable'=>max(0,$quota-$freeUsed)];
+ }
  private function customer():array{$u=CustomerAuth::user();if(!$u)$this->error('Unauthorized',401);return $u;}
 }

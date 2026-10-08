@@ -14,9 +14,9 @@ class Orders extends Controller {
    $it['id']=(int)$it['id'];$it['item_type']=$it['item_type']?:'product';$it['quantity']=(int)$it['quantity'];$it['unit_price']=(float)$it['unit_price'];$it['total_price']=(float)$it['total_price'];
    if($it['item_type']==='event_photo'){
     $it['ref_id']=$it['ref_id']!==null?(int)$it['ref_id']:null;$it['selections']=[];
-    $ph=$this->db()->query('SELECT oip.id,oip.photo_id,oip.variant,oip.price,p.preview_key,p.original_uploaded FROM vp_order_item_photos oip INNER JOIN vp_event_photos p ON p.id=oip.photo_id WHERE oip.order_item_id=? ORDER BY oip.id',[(int)$it['id']])->result_array()?:[];
+    $ph=$this->db()->query('SELECT oip.id,oip.photo_id,oip.variant,oip.price,oip.is_free,p.preview_key,p.original_uploaded FROM vp_order_item_photos oip INNER JOIN vp_event_photos p ON p.id=oip.photo_id WHERE oip.order_item_id=? ORDER BY oip.id',[(int)$it['id']])->result_array()?:[];
     $pl=[];
-    foreach($ph as $p){$pl[]=['id'=>(int)$p['id'],'photoId'=>(int)$p['photo_id'],'variant'=>$p['variant'],'price'=>(float)$p['price'],'previewUrl'=>Events::previewUrl($p['preview_key']),'originalUploaded'=>((int)$p['original_uploaded'])===1,'canDownloadStandard'=>$paid,'canDownloadOriginal'=>$paid&&((int)$p['original_uploaded'])===1];}
+    foreach($ph as $p){$pl[]=['id'=>(int)$p['id'],'photoId'=>(int)$p['photo_id'],'variant'=>$p['variant'],'price'=>(float)$p['price'],'free'=>((int)$p['is_free'])===1,'previewUrl'=>Events::previewUrl($p['preview_key']),'originalUploaded'=>((int)$p['original_uploaded'])===1,'canDownloadStandard'=>$paid,'canDownloadOriginal'=>$paid&&((int)$p['original_uploaded'])===1];}
     $it['photos']=$pl;
    } else {
     $it['selections']=json_decode((string)($it['selections_snapshot']??''),true)?:[];unset($it['selections_snapshot']);

@@ -18,5 +18,6 @@ Apply against a fresh Vita Pictura database, in this exact order:
 016_order_item_note.sql
 017_events.sql
 018_event_whitelist.sql
+019_product_free_photo_quota.sql
 
 Run the demo seed files only in local development. Never run them in staging or production.
