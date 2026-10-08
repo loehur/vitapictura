@@ -85,6 +85,7 @@ const eventLoading = ref(false)
 const eventDetail = ref(null)
 const eventCart = ref({ items: [], total: 0, count: 0 })
 const eventCartCount = computed(() => Number(eventCart.value.count) || 0)
+const eventHasPrice = computed(() => (eventDetail.value?.photos || []).some((p) => p.priceStandard != null || p.priceOriginal != null))
 const checkoutHasProducts = ref(true)
 const customerFirstName = computed(() => (customer.value?.name || '').trim().split(/\s+/)[0] || 'Masuk')
 const activeCategoryName = computed(() => activeCategory.value ? (catalog.value.categories.find((c) => c.slug === activeCategory.value)?.name || 'Katalog') : 'Pilihan')
@@ -788,6 +789,7 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
           <strong>Galeri Foto</strong>
           <span class="ev-count">{{ eventDetail.photos.length }} foto</span>
         </div>
+        <p v-if="eventDetail.photos.length && !eventHasPrice" class="description">Harga foto belum diatur oleh penyelenggara event, tombol pembelian belum aktif.</p>
         <p v-if="!eventDetail.photos.length" class="description">Belum ada foto pada event ini.</p>
         <div v-else class="ev-photos">
           <div v-for="ph in eventDetail.photos" :key="ph.id" class="ev-photo">
@@ -796,7 +798,9 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
             </div>
             <div class="ev-photo__actions">
               <button v-if="ph.priceStandard != null" class="cta" type="button" @click="addEventPhoto(ph, 'standard')">Standar {{ rupiah.format(ph.priceStandard) }}</button>
+              <button v-else class="ghost" type="button" disabled title="Harga file standar belum diatur penyelenggara">Standar · belum tersedia</button>
               <button v-if="ph.priceOriginal != null" class="ghost" type="button" @click="addEventPhoto(ph, 'original')">Original {{ rupiah.format(ph.priceOriginal) }}</button>
+              <button v-else class="ghost" type="button" disabled title="Harga file original belum diatur penyelenggara">Original · belum tersedia</button>
             </div>
           </div>
         </div>
