@@ -807,12 +807,6 @@ onMounted(async()=>{await loadHome();await loadAuth();await restoreSession();awa
       </section>
     </template>
     <template v-else-if="eventsOpen">
-      <div class="ev-hero">
-        <p class="eyebrow">Event</p>
-        <h1>Jelajahi Event</h1>
-        <p class="description">Temukan momen Anda. Cari event berdasarkan rentang tanggal (maksimal 7 hari).</p>
-      </div>
-
       <section class="ev-panel">
         <div class="ev-search">
           <label class="field"><span>Dari</span><input v-model="eventFrom" type="date"></label>
